@@ -18,8 +18,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_options(
-        -Wno-character-conversion
-        -Wno-deprecated-declarations
+        $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-character-conversion>
+        $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-deprecated-declarations>
     )
 endif()
 
@@ -82,45 +82,45 @@ if(EXISTS "${WDK_INC_KM}")
     )
 
     target_compile_definitions(unpd PRIVATE
-        _KERNEL_MODE=1
-        _AMD64_=1
-        _WIN64=1
-        NTDDI_VERSION=0x0A00000C
-        WINVER=0x0A00
-        _WIN32_WINNT=0x0A00
-        POOL_ZERO_DOWN_LEVEL_SUPPORT=1
+        $<$<COMPILE_LANGUAGE:CXX,C>:_KERNEL_MODE=1>
+        $<$<COMPILE_LANGUAGE:CXX,C>:_AMD64_=1>
+        $<$<COMPILE_LANGUAGE:CXX,C>:_WIN64=1>
+        $<$<COMPILE_LANGUAGE:CXX,C>:NTDDI_VERSION=0x0A00000C>
+        $<$<COMPILE_LANGUAGE:CXX,C>:WINVER=0x0A00>
+        $<$<COMPILE_LANGUAGE:CXX,C>:_WIN32_WINNT=0x0A00>
+        $<$<COMPILE_LANGUAGE:CXX,C>:POOL_ZERO_DOWN_LEVEL_SUPPORT=1>
     )
 
     target_compile_options(unpd PRIVATE
-        /kernel
-        /GR-
-        /GS
-        /Gy
-        /GF
-        /Zc:wchar_t
-        /Zc:forScope
-        /Zc:inline
-        /fp:precise
-        /W4
-        /WX
+        $<$<COMPILE_LANGUAGE:CXX,C>:/kernel>
+        $<$<COMPILE_LANGUAGE:CXX,C>:/GR->
+        $<$<COMPILE_LANGUAGE:CXX,C>:/GS>
+        $<$<COMPILE_LANGUAGE:CXX,C>:/Gy>
+        $<$<COMPILE_LANGUAGE:CXX,C>:/GF>
+        $<$<COMPILE_LANGUAGE:CXX,C>:/Zc:wchar_t>
+        $<$<COMPILE_LANGUAGE:CXX,C>:/Zc:forScope>
+        $<$<COMPILE_LANGUAGE:CXX,C>:/Zc:inline>
+        $<$<COMPILE_LANGUAGE:CXX,C>:/fp:precise>
+        $<$<COMPILE_LANGUAGE:CXX,C>:/W4>
+        $<$<COMPILE_LANGUAGE:CXX,C>:/WX>
     )
 
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         target_compile_options(unpd PRIVATE
-            -Wno-ignored-pragma-intrinsic
-            -Wno-pragma-pack
-            -Wno-macro-redefined
-            -Wno-invalid-token-paste
-            -Wno-inconsistent-dllimport
-            -Wno-nonportable-include-path
-            -Wno-unknown-pragmas
-            -Wno-microsoft-enum-forward-reference
-            -Wno-ignored-attributes
-            -Wno-sizeof-array-div
-            -Wno-unused-but-set-variable
-            -Wno-unused-variable
-            -Wno-microsoft-include
-            -Wno-c++11-narrowing
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-ignored-pragma-intrinsic>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-pragma-pack>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-macro-redefined>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-invalid-token-paste>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-inconsistent-dllimport>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-nonportable-include-path>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-unknown-pragmas>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-microsoft-enum-forward-reference>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-ignored-attributes>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-sizeof-array-div>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-unused-but-set-variable>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-unused-variable>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-microsoft-include>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-c++11-narrowing>
         )
     endif()
 
