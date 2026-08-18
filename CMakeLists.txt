@@ -18,8 +18,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_options(
-        $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-character-conversion>
-        $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-deprecated-declarations>
+        -Wno-unknown-warning-option
+        -Wno-deprecated-declarations
     )
 endif()
 
@@ -109,6 +109,7 @@ if(EXISTS "${WDK_INC_KM}")
 
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         target_compile_options(unpd PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-unknown-warning-option>
             $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-ignored-pragma-intrinsic>
             $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-pragma-pack>
             $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-macro-redefined>
@@ -207,10 +208,10 @@ if(UNPD_BUILD_TESTS)
 
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         target_compile_options(unpd_tests PRIVATE
+            -Wno-unknown-warning-option
             -Wno-unused-lambda-capture
             -Wno-nonportable-include-path
             -Wno-c++11-narrowing
-            -Wno-character-conversion
         )
     endif()
 
