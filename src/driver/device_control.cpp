@@ -55,6 +55,26 @@ UnpdDeviceControl(
         status = UnpdHandleProcessBufferNeither(devExt, Irp, irpSp, &information);
         break;
 
+    case IOCTL_UNPD_MAP_SHARED_MEMORY:
+        status = UnpdHandleMapSharedMemory(devExt, Irp, irpSp, &information);
+        break;
+
+    case IOCTL_UNPD_UNMAP_SHARED_MEMORY:
+        status = UnpdHandleUnmapSharedMemory(devExt, Irp, irpSp, &information);
+        break;
+
+    case IOCTL_UNPD_SWAP_BUFFERS:
+        status = UnpdHandleSwapBuffers(devExt, Irp, irpSp, &information);
+        break;
+
+    case IOCTL_UNPD_SLAB_ALLOC:
+        status = UnpdHandleSlabAlloc(devExt, Irp, irpSp, &information);
+        break;
+
+    case IOCTL_UNPD_SLAB_FREE:
+        status = UnpdHandleSlabFree(devExt, Irp, irpSp, &information);
+        break;
+
     default:
         status = STATUS_INVALID_DEVICE_REQUEST;
         information = 0;

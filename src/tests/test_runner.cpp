@@ -13,6 +13,7 @@ struct TestCase {
 extern void RegisterIoctlTests(std::vector<TestCase>& tests);
 extern void RegisterFuzzingTests(std::vector<TestCase>& tests);
 extern void RegisterStressTests(std::vector<TestCase>& tests);
+extern void RegisterPageEngineTests(std::vector<TestCase>& tests);
 
 int main(int argc, char* argv[]) {
     (void)argc;
@@ -35,6 +36,7 @@ int main(int argc, char* argv[]) {
     RegisterIoctlTests(tests);
     RegisterFuzzingTests(tests);
     RegisterStressTests(tests);
+    RegisterPageEngineTests(tests);
 
     size_t passed = 0;
     size_t failed = 0;

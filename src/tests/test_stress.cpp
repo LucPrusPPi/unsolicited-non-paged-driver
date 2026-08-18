@@ -20,7 +20,7 @@ void RegisterStressTests(std::vector<TestCase>& tests) {
             std::vector<std::thread> workers;
 
             for (int t = 0; t < threadCount; ++t) {
-                workers.emplace_back([&client, &allPassed, t, iterationsPerThread]() {
+                workers.emplace_back([&client, &allPassed, t]() {
                     for (int i = 0; i < iterationsPerThread; ++i) {
                         UNPD_PING_RESPONSE resp{};
                         uint32_t seq = (t * 10000) + i;
@@ -53,7 +53,7 @@ void RegisterStressTests(std::vector<TestCase>& tests) {
             std::vector<std::thread> workers;
 
             for (int t = 0; t < threadCount; ++t) {
-                workers.emplace_back([&client, &allPassed, iterationsPerThread]() {
+                workers.emplace_back([&client, &allPassed]() {
                     for (int i = 0; i < iterationsPerThread; ++i) {
                         uint64_t handle = 0;
                         if (!client.allocateNonPaged(512 + (i * 64), handle)) {

@@ -15,14 +15,21 @@ if (-not (Test-Path $vcvars)) {
     if ($found) { $vcvars = $found.FullName }
 }
 
+$clangCl = "C:\LLVM\bin\clang-cl.exe"
+$clangArg = ""
+if (Test-Path $clangCl) {
+    Write-Host "[*] Detected Clang compiler: $clangCl" -ForegroundColor Cyan
+    $clangArg = '-DCMAKE_C_COMPILER="' + $clangCl.Replace('\', '/') + '" -DCMAKE_CXX_COMPILER="' + $clangCl.Replace('\', '/') + '"'
+}
+
 if ($Clean -and (Test-Path "build")) {
     Write-Host "[*] Cleaning build directory..." -ForegroundColor Yellow
     Remove-Item -Recurse -Force build
 }
 
-Write-Host "[*] Configuring and building project ($Config)..." -ForegroundColor Cyan
+Write-Host "[*] Configuring and building project ($Config) with Clang/Ninja..." -ForegroundColor Cyan
 
-$buildCmd = 'call "' + $vcvars + '" && cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=' + $Config + ' && ninja -C build'
+$buildCmd = 'call "' + $vcvars + '" && cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=' + $Config + ' -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ' + $clangArg + ' && ninja -C build'
 cmd.exe /c $buildCmd
 
 if ($LASTEXITCODE -ne 0) {

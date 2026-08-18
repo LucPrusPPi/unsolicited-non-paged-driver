@@ -7,6 +7,7 @@
 
 #include <ntddk.h>
 #include "common.h"
+#include "page_engine.hpp"
 
 typedef struct _UNPD_ALLOCATION_ENTRY {
     LIST_ENTRY ListEntry;
@@ -27,6 +28,7 @@ typedef struct _UNPD_DEVICE_EXTENSION {
     uint64_t TotalBytesFreed;
     uint64_t TotalIoctlProcessed;
     uint64_t SpinLockContentionCount;
+    UNPD_PAGE_ENGINE PageEngine;
 } UNPD_DEVICE_EXTENSION, *PUNPD_DEVICE_EXTENSION;
 
 extern "C" {
@@ -77,6 +79,41 @@ NTSTATUS UnpdHandleProcessBufferDirect(
 );
 
 NTSTATUS UnpdHandleProcessBufferNeither(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+);
+
+NTSTATUS UnpdHandleMapSharedMemory(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+);
+
+NTSTATUS UnpdHandleUnmapSharedMemory(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+);
+
+NTSTATUS UnpdHandleSwapBuffers(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+);
+
+NTSTATUS UnpdHandleSlabAlloc(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+);
+
+NTSTATUS UnpdHandleSlabFree(
     PUNPD_DEVICE_EXTENSION devExt,
     PIRP irp,
     PIO_STACK_LOCATION irpSp,

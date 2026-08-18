@@ -40,8 +40,15 @@ DriverEntry(
     InitializeListHead(&devExt->AllocationListHead);
     devExt->NextAllocationHandle = 1;
 
+    status = UnpdInitPageEngine(&devExt->PageEngine);
+    if (!NT_SUCCESS(status)) {
+        IoDeleteDevice(deviceObject);
+        return status;
+    }
+
     status = IoCreateSymbolicLink(&symlinkName, &deviceName);
     if (!NT_SUCCESS(status)) {
+        UnpdCleanupPageEngine(&devExt->PageEngine);
         IoDeleteDevice(deviceObject);
         return status;
     }
@@ -68,6 +75,8 @@ DriverUnload(
         auto* devExt = static_cast<PUNPD_DEVICE_EXTENSION>(deviceObject->DeviceExtension);
 
         IoDeleteSymbolicLink(&devExt->SymbolicLinkName);
+
+        UnpdCleanupPageEngine(&devExt->PageEngine);
 
         {
             unpd::SpinlockGuard guard(&devExt->StateLock);
