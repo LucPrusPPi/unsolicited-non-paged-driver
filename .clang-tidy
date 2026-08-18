@@ -1,0 +1,16 @@
+---
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  cppcoreguidelines-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  readability-*
+
+WarningsAsErrors: ''
+HeaderFilterRegex: 'include/.*'
+FormatStyle: file
+...

@@ -1,0 +1,40 @@
+---
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 120
+AccessModifierOffset: -4
+AlignAfterOpenBracket: Align
+AlignConsecutiveMacros: true
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignEscapedNewlines: Right
+AlignOperands: Align
+AllowShortBlocksOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakAfterDefinitionReturnType: None
+AlwaysBreakAfterReturnType: None
+AlwaysBreakBeforeMultilineStrings: false
+BreakBeforeBinaryOperators: None
+BreakBeforeBraces: Attach
+BreakBeforeTernaryOperators: true
+BreakConstructorInitializers: BeforeColon
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^<nt.*'
+    Priority: 1
+  - Regex: '^<windows.*'
+    Priority: 1
+  - Regex: '^<.*'
+    Priority: 2
+  - Regex: '^"unpd/.*'
+    Priority: 3
+  - Regex: '.*'
+    Priority: 4
+SortIncludes: CaseSensitive
+Standard: Latest
+...

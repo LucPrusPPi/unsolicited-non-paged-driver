@@ -1,0 +1,33 @@
+# Build directories
+build/
+build-*/
+bin/
+lib/
+out/
+x64/
+Debug/
+Release/
+
+# Visual Studio & IDE
+.vs/
+*.vcxproj.user
+*.suo
+*.user
+*.opendb
+*.db
+
+# Certificates & Keys
+*.pfx
+*.p7b
+*.cer
+
+# Driver Output & Symbol files
+*.sys
+*.ilk
+*.pdb
+*.exp
+*.lib
+*.obj
+*.log
+*.tlog
+*.lastcodeanalysissucceeded

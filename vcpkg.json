@@ -1,0 +1,8 @@
+{
+  "name": "unsolicited-non-paged-driver",
+  "version-string": "1.0.0",
+  "description": "Windows Kernel Mode Driver Framework and Test Harness for TESTSIGNING development",
+  "homepage": "https://github.com/LucPrusPPi/unsolicited-non-paged-driver",
+  "license": "MIT",
+  "dependencies": []
+}
