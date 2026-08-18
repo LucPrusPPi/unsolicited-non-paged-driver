@@ -1,0 +1,69 @@
+#include "unpd/dispatch.hpp"
+
+extern "C"
+NTSTATUS
+UnpdCreateClose(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp
+) {
+    UNREFERENCED_PARAMETER(DeviceObject);
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = 0;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
+    return STATUS_SUCCESS;
+}
+
+extern "C"
+NTSTATUS
+UnpdDeviceControl(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp
+) {
+    auto* devExt = static_cast<PUNPD_DEVICE_EXTENSION>(DeviceObject->DeviceExtension);
+    PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
+    ULONG controlCode = irpSp->Parameters.DeviceIoControl.IoControlCode;
+
+    NTSTATUS status = STATUS_INVALID_DEVICE_REQUEST;
+    ULONG_PTR information = 0;
+
+    InterlockedIncrement64(reinterpret_cast<volatile LONG64*>(&devExt->TotalIoctlProcessed));
+
+    switch (controlCode) {
+    case IOCTL_UNPD_PING:
+        status = UnpdHandlePing(devExt, Irp, irpSp, &information);
+        break;
+
+    case IOCTL_UNPD_ALLOCATE_NONPAGED:
+        status = UnpdHandleAllocate(devExt, Irp, irpSp, &information);
+        break;
+
+    case IOCTL_UNPD_FREE_NONPAGED:
+        status = UnpdHandleFree(devExt, Irp, irpSp, &information);
+        break;
+
+    case IOCTL_UNPD_QUERY_STATS:
+        status = UnpdHandleQueryStats(devExt, Irp, irpSp, &information);
+        break;
+
+    case IOCTL_UNPD_PROCESS_BUFFER_DIRECT:
+        status = UnpdHandleProcessBufferDirect(devExt, Irp, irpSp, &information);
+        break;
+
+    case IOCTL_UNPD_PROCESS_BUFFER_NEITHER:
+        status = UnpdHandleProcessBufferNeither(devExt, Irp, irpSp, &information);
+        break;
+
+    default:
+        status = STATUS_INVALID_DEVICE_REQUEST;
+        information = 0;
+        break;
+    }
+
+    Irp->IoStatus.Status = status;
+    Irp->IoStatus.Information = information;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
+    return status;
+}
