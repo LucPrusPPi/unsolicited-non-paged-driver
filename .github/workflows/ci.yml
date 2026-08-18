@@ -1,0 +1,35 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-windows:
+    name: Build & Validate (Windows x64)
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Ninja
+        uses: ashley-taylor/setup-ninja@v1.0.0
+        with:
+          version: 1.11.1
+
+      - name: Build Driver and Tests (MSVC)
+        shell: powershell
+        run: |
+          .\build.ps1 -Compiler MSVC -Config Release -Sign
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: unpd-binaries
+          path: |
+            build/bin/unpd.sys
+            build/bin/unpd_tests.exe
+            unpd_test_root.cer
