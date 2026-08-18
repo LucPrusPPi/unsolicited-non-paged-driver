@@ -103,6 +103,8 @@ if(EXISTS "${WDK_INC_KM}")
         $<$<COMPILE_LANGUAGE:CXX,C>:/fp:precise>
         $<$<COMPILE_LANGUAGE:CXX,C>:/W4>
         $<$<COMPILE_LANGUAGE:CXX,C>:/WX>
+        $<$<AND:$<COMPILE_LANGUAGE:CXX,C>,$<CONFIG:Debug>>:/Od>
+        $<$<AND:$<COMPILE_LANGUAGE:CXX,C>,$<CONFIG:Debug>>:/RTC->
     )
 
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")

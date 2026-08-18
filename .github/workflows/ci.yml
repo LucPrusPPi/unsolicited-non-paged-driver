@@ -18,9 +18,15 @@ jobs:
           - name: "Windows x64 (MSVC Release)"
             compiler: MSVC
             build_type: Release
+            extra_args: ""
           - name: "Windows x64 (MSVC Debug)"
             compiler: MSVC
             build_type: Debug
+            extra_args: ""
+          - name: "Windows x64 (Clang-CL Release)"
+            compiler: Clang
+            build_type: Release
+            extra_args: '-DCMAKE_C_COMPILER="clang-cl.exe" -DCMAKE_CXX_COMPILER="clang-cl.exe"'
 
     steps:
       - name: Checkout Code
@@ -34,7 +40,7 @@ jobs:
       - name: Configure CMake
         shell: cmd
         run: |
-          cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUNPD_BUILD_TESTS=ON
+          cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DUNPD_BUILD_TESTS=ON ${{ matrix.extra_args }}
 
       - name: Build Driver & Tests
         shell: cmd
