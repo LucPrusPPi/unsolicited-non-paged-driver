@@ -48,20 +48,26 @@ public:
     }
 
     static NTSTATUS MakePageWritable(ULONG64 cr3, ULONG64 virtualAddress) {
-        if (!cr3 || !virtualAddress) return STATUS_INVALID_PARAMETER;
+        if (!cr3 || !virtualAddress) {
+            return STATUS_INVALID_PARAMETER;
+        }
 
         const ULONG64 ptePa = GetPtePhysicalAddress(cr3, virtualAddress);
-        if (!ptePa) return STATUS_UNSUCCESSFUL;
+        if (!ptePa) {
+            return STATUS_UNSUCCESSFUL;
+        }
 
         ULONG64 pteValue = 0;
         SIZE_T ioBytes = 0;
-        if (PhysicalMemory::ReadPhysicalAddress(ptePa, &pteValue, sizeof(pteValue), &ioBytes) != STATUS_SUCCESS)
+        if (PhysicalMemory::ReadPhysicalAddress(ptePa, &pteValue, sizeof(pteValue), &ioBytes) != STATUS_SUCCESS) {
             return STATUS_UNSUCCESSFUL;
+        }
 
         pteValue |= (1ULL << 1); // Set Read/Write bit
 
-        if (PhysicalMemory::WritePhysicalAddress(ptePa, &pteValue, sizeof(pteValue), &ioBytes) != STATUS_SUCCESS)
+        if (PhysicalMemory::WritePhysicalAddress(ptePa, &pteValue, sizeof(pteValue), &ioBytes) != STATUS_SUCCESS) {
             return STATUS_UNSUCCESSFUL;
+        }
 
 #ifdef _KERNEL_MODE
         UnpdInvlpg(reinterpret_cast<const void*>(virtualAddress));
@@ -70,20 +76,26 @@ public:
     }
 
     static NTSTATUS MakePageExecutable(ULONG64 cr3, ULONG64 virtualAddress) {
-        if (!cr3 || !virtualAddress) return STATUS_INVALID_PARAMETER;
+        if (!cr3 || !virtualAddress) {
+            return STATUS_INVALID_PARAMETER;
+        }
 
         const ULONG64 ptePa = GetPtePhysicalAddress(cr3, virtualAddress);
-        if (!ptePa) return STATUS_UNSUCCESSFUL;
+        if (!ptePa) {
+            return STATUS_UNSUCCESSFUL;
+        }
 
         ULONG64 pteValue = 0;
         SIZE_T ioBytes = 0;
-        if (PhysicalMemory::ReadPhysicalAddress(ptePa, &pteValue, sizeof(pteValue), &ioBytes) != STATUS_SUCCESS)
+        if (PhysicalMemory::ReadPhysicalAddress(ptePa, &pteValue, sizeof(pteValue), &ioBytes) != STATUS_SUCCESS) {
             return STATUS_UNSUCCESSFUL;
+        }
 
         pteValue &= ~(1ULL << 63); // Clear No-Execute (NX) bit
 
-        if (PhysicalMemory::WritePhysicalAddress(ptePa, &pteValue, sizeof(pteValue), &ioBytes) != STATUS_SUCCESS)
+        if (PhysicalMemory::WritePhysicalAddress(ptePa, &pteValue, sizeof(pteValue), &ioBytes) != STATUS_SUCCESS) {
             return STATUS_UNSUCCESSFUL;
+        }
 
 #ifdef _KERNEL_MODE
         UnpdInvlpg(reinterpret_cast<const void*>(virtualAddress));

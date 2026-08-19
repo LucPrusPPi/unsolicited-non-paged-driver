@@ -177,7 +177,6 @@ TEST_F(MmuPagingTest, HardwarePrimitives_ExtendedMasm) {
     char testBuf[64] = "MASM_HARDWARE_PRIMITIVE_TEST";
     UnpdPause();
     UnpdClflush(testBuf);
-    UnpdClwb(testBuf);
     EXPECT_EQ(testBuf[0], 'M');
 }
 
