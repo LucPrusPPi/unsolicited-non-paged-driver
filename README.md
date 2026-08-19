@@ -10,6 +10,7 @@ An academic-grade, modern C++20 Windows Kernel Driver framework, universal memor
 [![Architecture](https://img.shields.io/badge/arch-x64%20%2F%20MASM64-orange.svg?style=flat-square)]()
 [![MMU Paging](https://img.shields.io/badge/MMU-CR3%20%2F%20PML4%20%2F%20PTE-red.svg?style=flat-square)]()
 [![Memory Engine](https://img.shields.io/badge/memory-MDL%20%7C%20Pool%20%7C%20Slab%20%7C%20Section-yellow.svg?style=flat-square)]()
+[![Scripting](https://img.shields.io/badge/scripting-Python%20%7C%20Shell%20%7C%20Lua-blueviolet.svg?style=flat-square)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20x64-informational.svg?style=flat-square)]()
 [![Package Manager](https://img.shields.io/badge/vcpkg-supported-purple.svg?style=flat-square)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)]()
@@ -28,6 +29,7 @@ Built from the ground up for Windows 10 and Windows 11 x64, UNPD provides:
 - **Kernel C++20 STL (`kstd`)**: Freestanding `kstd::span<T>`, `kstd::expected<T, NTSTATUS>`, and `kstd::unique_ptr<T, Tag>`.
 - **Public C++20 Usermode Client SDK**: High-level RAII client (`include/unpd/client.hpp`) with automated loopback fallback for CI environments.
 - **Hardware Assembly (MASM64)**: Ring-0 memory fences, cycle counters (`rdtsc`/`rdtscp`), CR0..CR4, MSRs, and TLB invalidation (`invlpg`, `wbinvd`, CR3 reload).
+- **Multi-Language Automation**: Complete mirrored scripting support in PowerShell, POSIX Shell (Git Bash/WSL), Python 3, and Lua.
 - **Automated Matrix CI**: 6-job matrix in GitHub Actions (MSVC & Clang-CL in Release and Debug, Python tooling validation, schema audit) with 29 automated tests.
 
 ---
@@ -67,7 +69,7 @@ Built from the ground up for Windows 10 and Windows 11 x64, UNPD provides:
 
 ### 1. Universal Memory Manager (`unpd::memory::UniversalMemoryManager`)
 - **`PhysicalMdlZeroCopy`**: Physical RAM allocation with zero-copy user-space mapping (`MmMapLockedPagesSpecifyCache` with `MdlMappingNoExecute`).
-- **`SystemPoolNonPaged`**: Tagged NonPagedPoolNx allocations with handle tracking.
+- **`SystemPoolNonPaged`**: Tagged NonPagedPoolNx allocations with dynamic handle tracking.
 - **`SlabCachePool`**: O(1) Lookaside lists for 64B, 256B, 1024B, and 4096B block caches.
 - **`KernelSectionShared`**: Cross-process and user-kernel shared sections.
 - **`DirectNeitherBuffer`**: Safe user-mode pointer validation with SEH isolation.
@@ -91,14 +93,14 @@ Built from the ground up for Windows 10 and Windows 11 x64, UNPD provides:
 
 ## Quickstart & Build Instructions
 
-### Build with Clang-CL
+### Build with PowerShell (Windows)
 ```powershell
-.\build.ps1 -Compiler Clang -Config Release -Sign
+.\build.ps1 -Compiler Auto -Config Release -Sign
 ```
 
-### Build with MSVC
-```powershell
-.\build.ps1 -Compiler MSVC -Config Release -Sign
+### Build with Shell (Git Bash / WSL)
+```bash
+./build.sh --config Release --sign
 ```
 
 ### 1-Click Template Customizer (Rebranding)
@@ -149,10 +151,6 @@ python scripts/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 
 ```
 .
-├── .gemini/skills/             # Engineering policy and workflow skills
-│   ├── doc-update-policy/      # Continuous documentation synchronization skill
-│   ├── winapi-kernel-doc-policy/# NT API and IRQL documentation policy
-│   └── kernel-driver-dev/      # Kernel driver engineering guidelines
 ├── .github/workflows/          # GitHub Actions CI matrix
 │   └── ci.yml                  # 6-job matrix pipeline (MSVC/Clang-CL/Python/Audit)
 ├── cmake/                      # CMake package export configurations
@@ -200,17 +198,31 @@ python scripts/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 │       ├── gtest_fuzzing.cpp   # Adversarial boundary and buffer fuzzing tests
 │       ├── gtest_stress.cpp    # Multithreaded concurrency stress tests
 │       └── gtest_mmu.cpp       # MMU bitfields, virtual address & kstd tests
-├── scripts/                    # Automation and tooling scripts
-│   ├── bench_latency.py        # Python latency percentile profiler (p50/p95/p99)
-│   ├── driver_ctl.py           # Win32 SCM service manager via ctypes
-│   ├── fuzz_runner.py          # Boundary and randomized kernel IOCTL fuzzer
-│   ├── init_template.py        # 1-click template customizer and project renamer
-│   ├── verify_pe.py            # PE Authenticode, CFG, ASLR, and DEP inspector
-│   ├── Deploy-Driver.ps1       # SCM driver service manager
-│   ├── Run-Tests.ps1           # End-to-end test execution pipeline
-│   ├── Setup-VM.ps1            # VM testmode and root certificate installer
-│   └── Sign-Driver.ps1         # Certificate generation and SignTool automation
-├── build.ps1                   # Dual-compiler (MSVC / Clang) 1-click build script
+├── scripts/                    # Automation and tooling scripts by language
+│   ├── bash/                   # POSIX Shell & Git Bash automation
+│   │   ├── Deploy-Driver.sh    # SCM driver service manager
+│   │   ├── Run-Tests.sh        # End-to-end test execution pipeline
+│   │   ├── Setup-VM.sh         # VM testmode and root certificate installer
+│   │   ├── Sign-Driver.sh      # Certificate generation and SignTool
+│   │   ├── ci_check.sh         # Repository integrity and token audit
+│   │   └── package_release.sh  # Artifact packaging and SHA256 generator
+│   ├── powershell/             # Windows PowerShell automation
+│   │   ├── Deploy-Driver.ps1   # SCM driver service manager
+│   │   ├── Run-Tests.ps1       # End-to-end test execution pipeline
+│   │   ├── Setup-VM.ps1        # VM testmode and root certificate installer
+│   │   └── Sign-Driver.ps1     # Certificate generation and SignTool
+│   ├── python/                 # Python 3 toolchain and fuzzer
+│   │   ├── bench_latency.py    # Python latency percentile profiler (p50/p95/p99)
+│   │   ├── driver_ctl.py       # Win32 SCM service manager via ctypes
+│   │   ├── fuzz_runner.py      # Boundary and randomized kernel IOCTL fuzzer
+│   │   ├── init_template.py    # 1-click template customizer and project renamer
+│   │   └── verify_pe.py        # PE Authenticode, CFG, ASLR, and DEP inspector
+│   └── lua/                    # Lua automation and testing engine
+│       ├── config_validator.lua# Lua template schema and parameter validator
+│       ├── driver_test.lua     # Lua test and IOCTL protocol automation engine
+│       └── fuzz_scenario.lua   # Lua fuzz scenario generator and mutation engine
+├── build.ps1                   # Dual-compiler (MSVC / Clang) build script (PowerShell)
+├── build.sh                    # Dual-compiler build runner (POSIX Shell / Git Bash)
 ├── CMakeLists.txt              # CMake build configuration
 ├── vcpkg.json                  # vcpkg manifest
 ├── LICENSE                     # MIT License

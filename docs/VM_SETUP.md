@@ -20,12 +20,16 @@ Test-signing mode allows Windows 64-bit kernels to load binaries signed by custo
    - `build/bin/unpd.sys`
    - `build/bin/unpd_tests.exe`
    - `unpd_test_root.cer`
-   - `scripts/Setup-VM.ps1`
-   - `scripts/Deploy-Driver.ps1`
-   - `scripts/Run-Tests.ps1`
+   - `scripts/powershell/Setup-VM.ps1` (or `scripts/bash/Setup-VM.sh`)
+   - `scripts/powershell/Deploy-Driver.ps1` (or `scripts/bash/Deploy-Driver.sh`)
+   - `scripts/powershell/Run-Tests.ps1` (or `scripts/bash/Run-Tests.sh`)
 2. Open PowerShell as Administrator inside the VM and execute:
    ```powershell
-   powershell -ExecutionPolicy Bypass -File .\Setup-VM.ps1 -CertPath .\unpd_test_root.cer
+   powershell -ExecutionPolicy Bypass -File .\scripts\powershell\Setup-VM.ps1 -CertPath .\unpd_test_root.cer
+   ```
+   Or in Git Bash:
+   ```bash
+   bash ./scripts/bash/Setup-VM.sh ./unpd_test_root.cer
    ```
 3. Reboot the VM:
    ```powershell
@@ -40,7 +44,11 @@ Test-signing mode allows Windows 64-bit kernels to load binaries signed by custo
 Inside the VM, execute the test runner from an Administrator PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\Run-Tests.ps1 -SkipBuild
+powershell -ExecutionPolicy Bypass -File .\scripts\powershell\Run-Tests.ps1 -SkipBuild
+```
+Or in Git Bash:
+```bash
+bash ./scripts/bash/Run-Tests.sh Release 1
 ```
 
 The script registers the `unpd` kernel service via the Service Control Manager, starts the driver, runs the `unpd_tests.exe` test suite, and unloads the driver upon test completion.

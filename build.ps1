@@ -73,5 +73,5 @@ Write-Host "[+] Build completed successfully." -ForegroundColor Green
 
 if ($Sign) {
     Write-Host "[*] Signing driver binary..." -ForegroundColor Yellow
-    & powershell.exe -ExecutionPolicy Bypass -File .\scripts\Sign-Driver.ps1 -DriverPath .\build\bin\unpd.sys -ExportCert
+    & powershell.exe -ExecutionPolicy Bypass -File .\scripts\powershell\Sign-Driver.ps1 -DriverPath .\build\bin\unpd.sys -ExportCert
 }

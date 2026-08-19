@@ -51,7 +51,7 @@ jobs:
         run: |
           ninja -C build
 
-      - name: Run GoogleTest Suite (22 Tests)
+      - name: Run GoogleTest Suite (29 Tests)
         shell: cmd
         run: |
           .\build\bin\unpd_tests.exe --gtest_color=yes
@@ -88,11 +88,11 @@ jobs:
 
       - name: Run Adversarial Fuzzing Engine
         run: |
-          python scripts/fuzz_runner.py --cycles 1000
+          python scripts/python/fuzz_runner.py --cycles 1000
 
       - name: Run Micro-Benchmark Profiler
         run: |
-          python scripts/bench_latency.py --iterations 2000
+          python scripts/python/bench_latency.py --iterations 2000
 
   lint-and-validate:
     name: "Code Integrity & Schema Validation"
