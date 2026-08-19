@@ -63,6 +63,7 @@ if(EXISTS "${WDK_INC_KM}")
         src/driver/ioctl_handler.cpp
         src/driver/memory_manager.cpp
         src/driver/page_engine.cpp
+        src/driver/memory/universal_memory.cpp
         src/driver/kernel_asm.asm
         src/driver/unpd.rc
     )
