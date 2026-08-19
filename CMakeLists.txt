@@ -10,6 +10,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Strip Runtime Checks (/RTC1) from Debug flags for kernel compatibility
+string(REGEX REPLACE "/RTC[1csu]+" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+string(REGEX REPLACE "/RTC[1csu]+" "" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+
 option(UNPD_BUILD_TESTS "Build usermode test suite" ON)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -18,8 +22,9 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     add_compile_options(
-        -Wno-unknown-warning-option
-        -Wno-deprecated-declarations
+        $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-unknown-warning-option>
+        $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-character-conversion>
+        $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-deprecated-declarations>
     )
 endif()
 
@@ -104,7 +109,6 @@ if(EXISTS "${WDK_INC_KM}")
         $<$<COMPILE_LANGUAGE:CXX,C>:/W4>
         $<$<COMPILE_LANGUAGE:CXX,C>:/WX>
         $<$<AND:$<COMPILE_LANGUAGE:CXX,C>,$<CONFIG:Debug>>:/Od>
-        $<$<AND:$<COMPILE_LANGUAGE:CXX,C>,$<CONFIG:Debug>>:/RTC->
     )
 
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -212,6 +216,7 @@ if(UNPD_BUILD_TESTS)
             -Wno-unused-lambda-capture
             -Wno-nonportable-include-path
             -Wno-c++11-narrowing
+            -Wno-character-conversion
         )
     endif()
 
