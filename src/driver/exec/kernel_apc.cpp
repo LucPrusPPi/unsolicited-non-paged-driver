@@ -1,6 +1,10 @@
 #include <unpd/common.h>
 #include <unpd/exec/kernel_apc.hpp>
 
+#ifdef _KERNEL_MODE
+#include <ntddk.h>
+#endif
+
 namespace unpd::exec {
 
 #if UNPD_FEATURE_KERNEL_APC_INJECTION

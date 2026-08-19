@@ -1,6 +1,10 @@
 #include <unpd/common.h>
 #include <unpd/stealth/unloaded_cleaner.hpp>
 
+#ifdef _KERNEL_MODE
+#include <ntddk.h>
+#endif
+
 namespace unpd::stealth {
 
 #if UNPD_FEATURE_STEALTH_CLEANERS

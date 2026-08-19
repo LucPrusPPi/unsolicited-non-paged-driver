@@ -6,6 +6,10 @@
 #include <unpd/common.h>
 #include <unpd/config.hpp>
 
+#ifdef _KERNEL_MODE
+#include <ntddk.h>
+#endif
+
 namespace unpd::mmu {
 
 #if UNPD_FEATURE_PHYSICAL_MEMORY_ACCESS
