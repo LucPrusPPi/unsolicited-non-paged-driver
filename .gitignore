@@ -31,3 +31,6 @@ Release/
 *.log
 *.tlog
 *.lastcodeanalysissucceeded
+
+__pycache__/
+*.pyc
