@@ -1,5 +1,6 @@
 #include "unpd/memory/universal_memory.hpp"
 #include "unpd/kernel_asm.hpp"
+#include "unpd/mmu/paging_engine.hpp"
 
 #ifdef _KERNEL_MODE
 
@@ -65,13 +66,13 @@ static constexpr ULONG SLAB_SIZES[4] = { 64, 256, 1024, 4096 };
 static constexpr ULONG SLAB_TAGS[4]  = { '1LSU', '2LSU', '3LSU', '4LSU' };
 
 // ============================================================================
-// MdlMemoryEngine Implementation
+// MdlMemoryEngine Implementation (Dynamic Sessions & Context Invariance)
 // ============================================================================
 
 MdlMemoryEngine::MdlMemoryEngine() noexcept
     : m_initialized(false), m_nextSessionId(1) {
     KeInitializeSpinLock(&m_lock);
-    RtlZeroMemory(m_sessions, sizeof(m_sessions));
+    InitializeListHead(&m_sessionListHead);
 }
 
 MdlMemoryEngine::~MdlMemoryEngine() noexcept {
@@ -86,21 +87,44 @@ NTSTATUS MdlMemoryEngine::Initialize() noexcept {
 void MdlMemoryEngine::Shutdown() noexcept {
     if (!m_initialized) return;
 
-    for (size_t i = 0; i < MAX_SESSIONS; ++i) {
-        if (m_sessions[i].SessionId != 0) {
-            if (m_sessions[i].UserVa && m_sessions[i].Mdl) {
-                MmUnmapLockedPages(m_sessions[i].UserVa, m_sessions[i].Mdl);
-                m_sessions[i].UserVa = NULL;
+    KIRQL oldIrql;
+    KeAcquireSpinLock(&m_lock, &oldIrql);
+
+    while (!IsListEmpty(&m_sessionListHead)) {
+        PLIST_ENTRY entry = RemoveHeadList(&m_sessionListHead);
+        KeReleaseSpinLock(&m_lock, oldIrql);
+
+        auto* node = CONTAINING_RECORD(entry, SessionListNode, ListEntry);
+        SharedSessionDescriptor& desc = node->Descriptor;
+
+        if (desc.UserVa && desc.Mdl) {
+            PEPROCESS currentProcess = PsGetCurrentProcess();
+            if (desc.OwningProcess && desc.OwningProcess != currentProcess) {
+                unpd::mmu::ProcessAttachmentGuard guard(desc.OwningProcess);
+                MmUnmapLockedPages(desc.UserVa, desc.Mdl);
+            } else {
+                MmUnmapLockedPages(desc.UserVa, desc.Mdl);
             }
-            if (m_sessions[i].Mdl) {
-                MmFreePagesFromMdl(m_sessions[i].Mdl);
-                IoFreeMdl(m_sessions[i].Mdl);
-                m_sessions[i].Mdl = NULL;
-            }
-            m_sessions[i].SessionId = 0;
+            desc.UserVa = NULL;
         }
+
+        if (desc.Mdl) {
+            MmFreePagesFromMdl(desc.Mdl);
+            IoFreeMdl(desc.Mdl);
+            desc.Mdl = NULL;
+        }
+
+        if (desc.OwningProcess) {
+            ObDereferenceObject(desc.OwningProcess);
+            desc.OwningProcess = NULL;
+        }
+
+        ExFreePoolWithTag(node, 'NDPU');
+
+        KeAcquireSpinLock(&m_lock, &oldIrql);
     }
 
+    KeReleaseSpinLock(&m_lock, oldIrql);
     m_initialized = false;
 }
 
@@ -150,24 +174,19 @@ kstd::expected<SharedSessionDescriptor> MdlMemoryEngine::AllocateSharedSession(U
         return kstd::expected<SharedSessionDescriptor>::error(STATUS_INSUFFICIENT_RESOURCES);
     }
 
-    KIRQL oldIrql;
-    KeAcquireSpinLock(&m_lock, &oldIrql);
+    auto* node = static_cast<SessionListNode*>(
+        ExAllocatePool2(POOL_FLAG_NON_PAGED, sizeof(SessionListNode), 'NDPU')
+    );
 
-    size_t freeIdx = MAX_SESSIONS;
-    for (size_t i = 0; i < MAX_SESSIONS; ++i) {
-        if (m_sessions[i].SessionId == 0) {
-            freeIdx = i;
-            break;
-        }
-    }
-
-    if (freeIdx == MAX_SESSIONS) {
-        KeReleaseSpinLock(&m_lock, oldIrql);
+    if (!node) {
         MmUnmapLockedPages(userVa, mdl);
         MmFreePagesFromMdl(mdl);
         IoFreeMdl(mdl);
-        return kstd::expected<SharedSessionDescriptor>::error(STATUS_TOO_MANY_SESSIONS);
+        return kstd::expected<SharedSessionDescriptor>::error(STATUS_INSUFFICIENT_RESOURCES);
     }
+
+    PEPROCESS currentProc = PsGetCurrentProcess();
+    ObReferenceObject(currentProc);
 
     SharedSessionDescriptor desc{};
     desc.SessionId = m_nextSessionId++;
@@ -180,8 +199,13 @@ kstd::expected<SharedSessionDescriptor> MdlMemoryEngine::AllocateSharedSession(U
     desc.ActiveBufferIndex = 0;
     desc.SwapCounter = 0;
     desc.SectionHandle = NULL;
+    desc.OwningProcess = currentProc;
 
-    m_sessions[freeIdx] = desc;
+    node->Descriptor = desc;
+
+    KIRQL oldIrql;
+    KeAcquireSpinLock(&m_lock, &oldIrql);
+    InsertTailList(&m_sessionListHead, &node->ListEntry);
     KeReleaseSpinLock(&m_lock, oldIrql);
 
     return desc;
@@ -193,31 +217,44 @@ NTSTATUS MdlMemoryEngine::FreeSharedSession(uint64_t sessionId) noexcept {
     KIRQL oldIrql;
     KeAcquireSpinLock(&m_lock, &oldIrql);
 
-    size_t foundIdx = MAX_SESSIONS;
-    for (size_t i = 0; i < MAX_SESSIONS; ++i) {
-        if (m_sessions[i].SessionId == sessionId) {
-            foundIdx = i;
+    SessionListNode* targetNode = nullptr;
+    for (PLIST_ENTRY curr = m_sessionListHead.Flink; curr != &m_sessionListHead; curr = curr->Flink) {
+        auto* node = CONTAINING_RECORD(curr, SessionListNode, ListEntry);
+        if (node->Descriptor.SessionId == sessionId) {
+            RemoveEntryList(&node->ListEntry);
+            targetNode = node;
             break;
         }
     }
 
-    if (foundIdx == MAX_SESSIONS) {
-        KeReleaseSpinLock(&m_lock, oldIrql);
+    KeReleaseSpinLock(&m_lock, oldIrql);
+
+    if (!targetNode) {
         return STATUS_NOT_FOUND;
     }
 
-    SharedSessionDescriptor sessionToFree = m_sessions[foundIdx];
-    m_sessions[foundIdx].SessionId = 0;
-    KeReleaseSpinLock(&m_lock, oldIrql);
+    SharedSessionDescriptor desc = targetNode->Descriptor;
 
-    if (sessionToFree.UserVa && sessionToFree.Mdl) {
-        MmUnmapLockedPages(sessionToFree.UserVa, sessionToFree.Mdl);
-    }
-    if (sessionToFree.Mdl) {
-        MmFreePagesFromMdl(sessionToFree.Mdl);
-        IoFreeMdl(sessionToFree.Mdl);
+    if (desc.UserVa && desc.Mdl) {
+        PEPROCESS currentProcess = PsGetCurrentProcess();
+        if (desc.OwningProcess && desc.OwningProcess != currentProcess) {
+            unpd::mmu::ProcessAttachmentGuard guard(desc.OwningProcess);
+            MmUnmapLockedPages(desc.UserVa, desc.Mdl);
+        } else {
+            MmUnmapLockedPages(desc.UserVa, desc.Mdl);
+        }
     }
 
+    if (desc.Mdl) {
+        MmFreePagesFromMdl(desc.Mdl);
+        IoFreeMdl(desc.Mdl);
+    }
+
+    if (desc.OwningProcess) {
+        ObDereferenceObject(desc.OwningProcess);
+    }
+
+    ExFreePoolWithTag(targetNode, 'NDPU');
     return STATUS_SUCCESS;
 }
 
@@ -230,14 +267,15 @@ NTSTATUS MdlMemoryEngine::SwapBuffers(
     KIRQL oldIrql;
     KeAcquireSpinLock(&m_lock, &oldIrql);
 
-    for (size_t i = 0; i < MAX_SESSIONS; ++i) {
-        if (m_sessions[i].SessionId == sessionId) {
-            LONG current = m_sessions[i].ActiveBufferIndex;
+    for (PLIST_ENTRY curr = m_sessionListHead.Flink; curr != &m_sessionListHead; curr = curr->Flink) {
+        auto* node = CONTAINING_RECORD(curr, SessionListNode, ListEntry);
+        if (node->Descriptor.SessionId == sessionId) {
+            LONG current = node->Descriptor.ActiveBufferIndex;
             LONG next = (current == 0) ? 1 : 0;
-            InterlockedExchange(&m_sessions[i].ActiveBufferIndex, next);
+            InterlockedExchange(&node->Descriptor.ActiveBufferIndex, next);
             UnpdMemoryFence();
 
-            LONG64 totalSwaps = InterlockedIncrement64(&m_sessions[i].SwapCounter);
+            LONG64 totalSwaps = InterlockedIncrement64(&node->Descriptor.SwapCounter);
 
             outActive = static_cast<uint32_t>(next);
             outStandby = static_cast<uint32_t>(current);

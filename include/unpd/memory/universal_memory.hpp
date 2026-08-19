@@ -37,6 +37,15 @@ struct SharedSessionDescriptor {
     volatile LONG ActiveBufferIndex;
     volatile LONG64 SwapCounter;
     HANDLE SectionHandle;
+    PEPROCESS OwningProcess;
+};
+
+/**
+ * @brief Intrusive dynamic list node for tracking active sessions.
+ */
+struct SessionListNode {
+    LIST_ENTRY ListEntry;
+    SharedSessionDescriptor Descriptor;
 };
 
 /**
@@ -70,12 +79,7 @@ public:
 };
 
 /**
- * @brief Physical Memory MDL Zero-Copy Engine.
- *
- * @details
- * Handles allocation of physical RAM frames via MmAllocatePagesForMdlEx,
- * mapping into calling user-mode address space via MmMapLockedPagesSpecifyCache
- * with MdlMappingNoExecute, and lock-free double-buffering page swaps.
+ * @brief Physical Memory MDL Zero-Copy Engine with dynamic session tracking and process isolation.
  */
 class MdlMemoryEngine final : public IMemoryEngine {
 public:
@@ -92,9 +96,8 @@ public:
     NTSTATUS SwapBuffers(uint64_t sessionId, uint32_t& outActive, uint32_t& outStandby, uint64_t& outSwaps) noexcept;
 
 private:
-    static constexpr size_t MAX_SESSIONS = 32;
     KSPIN_LOCK m_lock;
-    SharedSessionDescriptor m_sessions[MAX_SESSIONS];
+    LIST_ENTRY m_sessionListHead;
     bool m_initialized;
     uint64_t m_nextSessionId;
 };
@@ -159,9 +162,6 @@ public:
 
 /**
  * @brief Universal Kernel Memory Management Facade.
- *
- * @details
- * Coordinates polymorphic engine instances and provides unified IOCTL dispatch interfaces.
  */
 class UniversalMemoryManager {
 public:

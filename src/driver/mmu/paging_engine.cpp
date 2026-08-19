@@ -39,6 +39,14 @@ kstd::expected<TranslationResult> PagingEngine::TranslateVirtualAddress(
         return kstd::expected<TranslationResult>::error(STATUS_INVALID_PARAMETER);
     }
 
+    uintptr_t vaInt = reinterpret_cast<uintptr_t>(virtualAddress);
+
+    // Canonical 48-bit address validation
+    uintptr_t signExtension = vaInt >> 47;
+    if (signExtension != 0 && signExtension != 0x1FFFF) {
+        return kstd::expected<TranslationResult>::error(STATUS_INVALID_PARAMETER);
+    }
+
     if (cr3Value == 0) {
         // Use NT memory manager physical translation
         PHYSICAL_ADDRESS pa = MmGetPhysicalAddress(const_cast<PVOID>(virtualAddress));
@@ -51,7 +59,7 @@ kstd::expected<TranslationResult> PagingEngine::TranslateVirtualAddress(
         res.PageSize = PAGE_SIZE_4KB;
         res.IsPresent = true;
         res.IsWritable = true;
-        res.IsUserAccessible = (reinterpret_cast<uintptr_t>(virtualAddress) < 0x7FFFFFFFFFFFULL);
+        res.IsUserAccessible = (vaInt < 0x7FFFFFFFFFFFULL);
         res.IsExecutable = true;
         return res;
     }
