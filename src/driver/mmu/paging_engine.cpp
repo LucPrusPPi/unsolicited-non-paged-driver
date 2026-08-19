@@ -4,6 +4,26 @@
 
 namespace unpd::mmu {
 
+static NTSTATUS SafeProbeAndRead(const void* sourceAddress, void* destination, SIZE_T size) noexcept {
+    __try {
+        ProbeForRead(const_cast<void*>(sourceAddress), size, 1);
+        RtlCopyMemory(destination, sourceAddress, size);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return GetExceptionCode();
+    }
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS SafeProbeAndWrite(void* targetAddress, const void* source, SIZE_T size) noexcept {
+    __try {
+        ProbeForWrite(targetAddress, size, 1);
+        RtlCopyMemory(targetAddress, source, size);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return GetExceptionCode();
+    }
+    return STATUS_SUCCESS;
+}
+
 /**
  * @brief Resolves a virtual address to its corresponding physical address by walking page tables.
  *
@@ -145,12 +165,7 @@ NTSTATUS PagingEngine::SafeCopyProcessMemory(
     // Step 1: Read from source process into intermediate kernel buffer
     {
         ProcessAttachmentGuard attachSource(sourceProcess);
-        __try {
-            ProbeForRead(const_cast<void*>(sourceAddress), size, 1);
-            RtlCopyMemory(intermediate, sourceAddress, size);
-        } __except (EXCEPTION_EXECUTE_HANDLER) {
-            status = GetExceptionCode();
-        }
+        status = SafeProbeAndRead(sourceAddress, intermediate, size);
     }
 
     if (!NT_SUCCESS(status)) {
@@ -161,12 +176,7 @@ NTSTATUS PagingEngine::SafeCopyProcessMemory(
     // Step 2: Write from intermediate kernel buffer to target process
     {
         ProcessAttachmentGuard attachTarget(targetProcess);
-        __try {
-            ProbeForWrite(targetAddress, size, 1);
-            RtlCopyMemory(targetAddress, intermediate, size);
-        } __except (EXCEPTION_EXECUTE_HANDLER) {
-            status = GetExceptionCode();
-        }
+        status = SafeProbeAndWrite(targetAddress, intermediate, size);
     }
 
     ExFreePoolWithTag(intermediate, 'MPNU');
