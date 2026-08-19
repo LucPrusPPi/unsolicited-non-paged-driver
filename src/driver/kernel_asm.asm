@@ -508,6 +508,10 @@ UnpdComputeCrc32_Buffer PROC
     dec     r8
     jnz     @crc_byte_loop
 
+@crc_done:
+    ret
+UnpdComputeCrc32_Buffer ENDP
+
 ;------------------------------------------------------------------------------
 ; CR0 Write-Protect (WP) Bit Toggles (Bit 16: 0x10000)
 ;------------------------------------------------------------------------------
