@@ -134,7 +134,7 @@ jobs:
         run: |
           python scripts/python/update_readme_stats.py
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add README.md
           $diff = git diff --staged
           if ($diff -and ("${{ github.ref }}" -eq "refs/heads/main") -and ("${{ github.event_name }}" -eq "push")) {
