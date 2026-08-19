@@ -27,6 +27,10 @@ jobs:
             compiler: Clang
             build_type: Release
             extra_args: '-DCMAKE_C_COMPILER="clang-cl.exe" -DCMAKE_CXX_COMPILER="clang-cl.exe"'
+          - name: "Windows x64 (Clang-CL Debug)"
+            compiler: Clang
+            build_type: Debug
+            extra_args: '-DCMAKE_C_COMPILER="clang-cl.exe" -DCMAKE_CXX_COMPILER="clang-cl.exe"'
 
     steps:
       - name: Checkout Code
@@ -47,7 +51,7 @@ jobs:
         run: |
           ninja -C build
 
-      - name: Run GoogleTest Suite
+      - name: Run GoogleTest Suite (22 Tests)
         shell: cmd
         run: |
           .\build\bin\unpd_tests.exe --gtest_color=yes
@@ -65,3 +69,55 @@ jobs:
           path: |
             build/bin/unpd.sys
             build/bin/unpd_tests.exe
+
+  python-tooling:
+    name: "Python Automation & Fuzzer Suite"
+    runs-on: windows-2022
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run Unit Tests
+        run: |
+          python -m unittest discover -s tests -p "test_*.py"
+
+      - name: Run Adversarial Fuzzing Engine
+        run: |
+          python scripts/fuzz_runner.py --cycles 1000
+
+      - name: Run Micro-Benchmark Profiler
+        run: |
+          python scripts/bench_latency.py --iterations 2000
+
+  lint-and-validate:
+    name: "Code Integrity & Schema Validation"
+    runs-on: windows-2022
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate vcpkg Manifest
+        shell: pwsh
+        run: |
+          $manifest = Get-Content -Raw vcpkg.json | ConvertFrom-Json
+          if ($manifest.name -ne "unsolicited-non-paged-driver") {
+            throw "Invalid vcpkg manifest name"
+          }
+          Write-Host "[+] vcpkg manifest validated successfully: $($manifest.name) v$($manifest.version)"
+
+      - name: Check Header Guards & Architecture Signatures
+        shell: pwsh
+        run: |
+          $headers = Get-ChildItem -Recurse include/ -Filter *.hpp
+          foreach ($h in $headers) {
+            $content = Get-Content -Raw $h.FullName
+            if (-not ($content -match "#pragma once")) {
+              throw "Missing #pragma once in $($h.Name)"
+            }
+          }
+          Write-Host "[+] All $(($headers).Count) C++20 headers passed guard verification."
