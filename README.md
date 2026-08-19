@@ -164,7 +164,7 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 <!-- LANGUAGES_START -->
 | Language | Share | Files | Code Lines |
 |---|---|---|---|
-| C++ | 59.7% | 48 | 5,218 |
+| C++ | 59.8% | 48 | 5,220 |
 | Lua | 10.2% | 7 | 797 |
 | Python |  9.0% | 7 | 675 |
 | Assembly |  5.1% | 1 | 515 |
