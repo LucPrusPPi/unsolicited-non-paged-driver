@@ -97,6 +97,8 @@ jobs:
   lint-and-validate:
     name: "Code Integrity & Schema Validation"
     runs-on: windows-2022
+    permissions:
+      contents: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
