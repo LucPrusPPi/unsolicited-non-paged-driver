@@ -112,6 +112,7 @@ if(EXISTS "${WDK_INC_KM}")
         $<$<COMPILE_LANGUAGE:CXX,C>:/WX>
         $<$<COMPILE_LANGUAGE:CXX,C>:/wd4005>
         $<$<COMPILE_LANGUAGE:CXX,C>:/wd4083>
+        $<$<COMPILE_LANGUAGE:CXX,C>:/wd4201>
         $<$<AND:$<COMPILE_LANGUAGE:CXX,C>,$<CONFIG:Debug>>:/Od>
     )
 
@@ -213,6 +214,7 @@ if(UNPD_BUILD_TESTS)
         /W4
         /permissive-
         /EHsc
+        /wd4201
     )
 
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
