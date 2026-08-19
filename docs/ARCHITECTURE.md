@@ -191,3 +191,30 @@ UNPD provides complete architectural access to x86-64 control, debug, descriptor
 ### 6.3 Hardware-Accelerated SSE4.2 CRC32 & Lockless Bit Manipulation
 - **`UnpdComputeCrc32_Buffer`**: High-throughput vectorized QWORD assembly loop utilizing `crc32 rax, rdx` for instantaneous zero-overhead packet and memory integrity validation.
 - **`UnpdAtomicBitSet` / `UnpdAtomicBitReset` / `UnpdAtomicBitTest`**: Hardware-locked bitwise primitives (`lock bts`, `lock btr`, `bt`) for lockless bitmap allocation tracking.
+
+---
+
+## 7. Monolithic Usermode Integration & Lockless Ring Channel Architecture
+
+UNPD integrates all kernel subsystems into a unified C++20 Usermode Client (`DriverClient` & `SharedRingSession`):
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            DriverClient C++20 API                           │
+├────────────────────────────┬────────────────────────────────────────────────┤
+│ Category                   │ Method Signature                               │
+├────────────────────────────┼────────────────────────────────────────────────┤
+│ Diagnostics & Benchmark    │ `ping(seq, resp)`, `queryStats(stats)`         │
+│ Memory Pool Management     │ `allocateNonPaged(size, handle)`, `free(...)`  │
+│ Shared Memory Sessions     │ `mapSharedMemory(...)`, `swapBuffers(...)`     │
+│ Slab Allocator Cache       │ `slabAlloc(class, handle)`, `slabFree(...)`    │
+│ CR3 Physical Process R/W   │ `readProcessMemoryCr3()`, `writeProcess...()`  │
+│ Kernel APC Injection       │ `queueUserApc(threadId, routine, context)`     │
+│ Dynamic Table Diagnostics  │ `cleanPiDdbCache()`, `cleanUnloadedDrivers()`  │
+│ Lockless Ring Channel      │ `SharedRingSession::sendCommand() / receive()` │
+└────────────────────────────┴────────────────────────────────────────────────┘
+```
+
+1. **`SharedRingSession`**: RAII session manager for zero-copy memory ring buffers with `alignas(64)` cacheline padding, eliminating false sharing across multicore processors.
+2. **Offline Virtual MMU Sandbox (`unpd::test::emulator`)**: 64MB isolated physical RAM emulator executing 4-level PML4 address translations and `#PF` fault injections offline in CI without requiring kernel loading.
+
