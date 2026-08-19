@@ -7,8 +7,8 @@ import unittest
 import sys
 from pathlib import Path
 
-# Add scripts directory to path
-SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
+# Add scripts/python directory to path
+SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts" / "python"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from bench_latency import LatencyStats
