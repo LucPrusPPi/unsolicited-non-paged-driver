@@ -9,6 +9,18 @@
 #else
 #include <windows.h>
 #include <winioctl.h>
+#ifndef NTSTATUS
+typedef LONG NTSTATUS;
+#endif
+#ifndef STATUS_SUCCESS
+#define STATUS_SUCCESS                   ((NTSTATUS)0x00000000L)
+#endif
+#ifndef STATUS_INVALID_PARAMETER
+#define STATUS_INVALID_PARAMETER         ((NTSTATUS)0xC000000DL)
+#endif
+#ifndef STATUS_NOT_SUPPORTED
+#define STATUS_NOT_SUPPORTED             ((NTSTATUS)0xC00000BBB)
+#endif
 #endif
 
 #include <stdint.h>
