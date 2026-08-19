@@ -197,6 +197,13 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 │   ├── kernel_raii.hpp         # RAII primitives for kernel spinlocks and mutexes
 │   ├── page_engine.hpp         # Zero-copy shared memory and slab cache interfaces
 │   ├── security.hpp            # User buffer validation helpers
+│   ├── comm/                   # Stealth Communication Subsystem
+│   │   └── backend_shared_mem.hpp # Lockless shared memory polling backend
+│   ├── exec/                   # Execution & Injection Primitives
+│   │   └── kernel_apc.hpp      # Asynchronous Kernel APC queueing
+│   ├── stealth/                # Kernel Trace Scrubbers & Stealth Engine
+│   │   ├── piddb_cleaner.hpp   # PiDDBCacheTable & KernelHashBucketList scrubber
+│   │   └── unloaded_cleaner.hpp# MmUnloadedDrivers & PoolBigPageTable scrubber
 │   ├── kstd/                   # Freestanding Kernel C++20 STL
 │   │   ├── kstd_span.hpp       # Type-safe memory view span
 │   │   ├── kstd_expected.hpp   # Value-or-NTSTATUS error container
@@ -206,6 +213,9 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 │   └── mmu/                    # Hardware MMU & Paging Subsystem
 │       ├── paging_types.hpp    # x86-64 CR3, PML4, PDP, PD, PTE bitfields
 │       ├── paging_engine.hpp   # Page walking, process attach, virtual memory
+│       ├── physical_memory.hpp # Raw PFN & MmMapIoSpaceEx physical RW
+│       ├── cr3_walker.hpp      # Direct CR3 PML4 translation (no process attach)
+│       ├── pte_remapper.hpp    # Direct PTE attribute manipulation (RW/NX)
 │       └── descriptors.hpp     # IDT, GDT, TSS64, DR0..DR7, CR0, CR4, EFER, PAT
 
 ├── src/
@@ -217,10 +227,11 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 │   │   ├── page_engine.cpp     # Physical MDL mapping and atomic buffer swap
 │   │   ├── kernel_asm.asm      # x64 MASM low-level hardware memory barriers & MMU
 │   │   ├── unpd.rc             # Windows PE version metadata
+│   │   ├── comm/               # Shared memory backend implementation
+│   │   ├── exec/               # Kernel APC injection implementation
+│   │   ├── stealth/            # PiDDB and Unloaded drivers scrubbers
 │   │   ├── memory/             # Universal memory implementations
-│   │   │   └── universal_memory.cpp # Multi-strategy memory management
-│   │   └── mmu/                # MMU & paging implementations
-│   │       └── paging_engine.cpp    # Page table walker & process memory
+│   │   └── mmu/                # Physical memory & CR3 walker implementations
 │   └── tests/                  # GoogleTest test harness (unpd_tests.exe)
 │       ├── test_client.hpp     # Forwards to public SDK client header
 │       ├── test_gtest_main.cpp # GTest entrypoint
@@ -228,7 +239,9 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 │       ├── gtest_page_engine.cpp# Shared memory and slab cache tests
 │       ├── gtest_fuzzing.cpp   # Adversarial boundary and buffer fuzzing tests
 │       ├── gtest_stress.cpp    # Multithreaded concurrency stress tests
-│       └── gtest_mmu.cpp       # MMU bitfields, virtual address & kstd tests
+│       ├── gtest_mmu.cpp       # MMU bitfields, virtual address & kstd tests
+│       ├── gtest_stealth.cpp   # PiDDB & Unloaded drivers scrubber tests
+│       └── gtest_cr3_walker.cpp# Direct CR3 walker & physical memory tests
 ├── scripts/                    # Automation and tooling scripts by language
 │   ├── bash/                   # POSIX Shell & Git Bash automation
 │   │   ├── Deploy-Driver.sh    # SCM driver service manager

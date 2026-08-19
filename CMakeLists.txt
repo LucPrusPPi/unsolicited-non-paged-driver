@@ -65,6 +65,12 @@ if(EXISTS "${WDK_INC_KM}")
         src/driver/page_engine.cpp
         src/driver/memory/universal_memory.cpp
         src/driver/mmu/paging_engine.cpp
+        src/driver/mmu/physical_memory.cpp
+        src/driver/mmu/cr3_walker.cpp
+        src/driver/stealth/piddb_cleaner.cpp
+        src/driver/stealth/unloaded_cleaner.cpp
+        src/driver/comm/backend_shared_mem.cpp
+        src/driver/exec/kernel_apc.cpp
         src/driver/kernel_asm.asm
         src/driver/unpd.rc
     )
@@ -194,6 +200,14 @@ if(UNPD_BUILD_TESTS)
         src/tests/gtest_fuzzing.cpp
         src/tests/gtest_stress.cpp
         src/tests/gtest_mmu.cpp
+        src/tests/gtest_stealth.cpp
+        src/tests/gtest_cr3_walker.cpp
+        src/driver/mmu/physical_memory.cpp
+        src/driver/mmu/cr3_walker.cpp
+        src/driver/stealth/piddb_cleaner.cpp
+        src/driver/stealth/unloaded_cleaner.cpp
+        src/driver/comm/backend_shared_mem.cpp
+        src/driver/exec/kernel_apc.cpp
         src/driver/kernel_asm.asm
     )
 
