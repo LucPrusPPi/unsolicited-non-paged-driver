@@ -26,4 +26,4 @@ ports/** linguist-vendored=true
 cmake/** linguist-vendored=true
 docs/** linguist-documentation=true
 *.md linguist-documentation=true
-*.rc linguist-detectable=false
+*.rc linguist-detectable=true
