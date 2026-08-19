@@ -14,7 +14,6 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from bench_latency import LatencyStats
 from fuzz_runner import FuzzGenerator, run_fuzzing
 from verify_pe import PEInspector
-from update_language_stats import scan_repository, generate_markdown
 
 class TestLatencyStats(unittest.TestCase):
     def test_empty_samples(self):
@@ -56,19 +55,6 @@ class TestFuzzGenerator(unittest.TestCase):
     def test_fuzz_runner_cycles(self):
         rc = run_fuzzing(100)
         self.assertEqual(rc, 0)
-
-class TestLanguageStats(unittest.TestCase):
-    def test_scan_repository(self):
-        stats = scan_repository()
-        self.assertIn("C++", stats)
-        self.assertIn("Lua", stats)
-        self.assertIn("Python", stats)
-        self.assertGreater(stats["Lua"]["files"], 0)
-        self.assertGreater(stats["C++"]["bytes"], 1000)
-
-        md = generate_markdown(stats)
-        self.assertIn("UNPD Repository Language Metrics", md)
-        self.assertIn("Lua", md)
 
 if __name__ == "__main__":
     unittest.main()

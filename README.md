@@ -15,13 +15,6 @@ An academic-grade, modern C++20 Windows Kernel Driver framework, universal memor
 [![Package Manager](https://img.shields.io/badge/vcpkg-supported-purple.svg?style=flat-square)](https://github.com/LucPrusPPi/unsolicited-non-paged-driver)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)](LICENSE)
 
-<p align="center">
-  <b><a href="docs/ARCHITECTURE.md">Architecture & MMU</a></b> •
-  <b><a href="docs/IOCTL_PROTOCOL.md">IOCTL Protocol</a></b> •
-  <b><a href="docs/LANGUAGES.md">Language Metrics</a></b> •
-  <b><a href="docs/VM_SETUP.md">VM & Testmode Guide</a></b>
-</p>
-
 </div>
 
 ---
@@ -166,6 +159,21 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 
 ---
 
+## Languages
+
+| Language | Share | Files | Code Lines |
+|---|---|---|---|
+| C++ | 56.8% | 33 | 4,765 |
+| Python | 11.2% | 5 | 610 |
+| Lua | 10.5% | 7 | 797 |
+| Assembly | 5.3% | 1 | 515 |
+| PowerShell | 5.1% | 5 | 324 |
+| Shell | 4.8% | 7 | 345 |
+| CMake | 3.6% | 1 | 272 |
+| C | 2.8% | 1 | 217 |
+
+---
+
 ## Repository Structure
 
 ```
@@ -177,7 +185,6 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 ├── docs/                       # Technical documentation
 │   ├── ARCHITECTURE.md         # Kernel internals, MMU paging, and memory lifecycle
 │   ├── IOCTL_PROTOCOL.md       # Complete 11-opcode IOCTL specification
-│   ├── LANGUAGES.md            # Codebase language metrics and distribution breakdown
 │   └── VM_SETUP.md             # VMWare testmode and WinDbg guide
 ├── include/unpd/               # Public and kernel headers
 │   ├── client.hpp              # Public C++20 Usermode Client SDK
