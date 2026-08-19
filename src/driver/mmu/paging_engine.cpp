@@ -1,4 +1,5 @@
 #include "unpd/mmu/paging_engine.hpp"
+#include "unpd/mmu/physical_memory.hpp"
 
 #ifdef _KERNEL_MODE
 
@@ -70,13 +71,63 @@ kstd::expected<TranslationResult> PagingEngine::TranslateVirtualAddress(
     CR3_REGISTER_64 cr3{};
     cr3.Value = cr3Value;
 
+    const ULONG64 pml4Base = cr3.Pml4PhysicalAddress << PAGE_SHIFT_4KB;
+    const ULONG64 pml4Index = va.Pml4Index;
+    ULONG64 pml4e = 0;
+    SIZE_T bytesRead = 0;
+    if (PhysicalMemory::ReadPhysicalAddress(pml4Base + (pml4Index * 8), &pml4e, sizeof(pml4e), &bytesRead) != STATUS_SUCCESS || !(pml4e & 1ULL)) {
+        return kstd::expected<TranslationResult>::error(STATUS_UNSUCCESSFUL);
+    }
+
+    const ULONG64 pdptBase = pml4e & 0x000FFFFFFFFFF000ULL;
+    const ULONG64 pdptIndex = va.PdptIndex;
+    ULONG64 pdpte = 0;
+    if (PhysicalMemory::ReadPhysicalAddress(pdptBase + (pdptIndex * 8), &pdpte, sizeof(pdpte), &bytesRead) != STATUS_SUCCESS || !(pdpte & 1ULL)) {
+        return kstd::expected<TranslationResult>::error(STATUS_UNSUCCESSFUL);
+    }
+
     TranslationResult res{};
-    res.PhysicalAddress = (cr3.Pml4PhysicalAddress << PAGE_SHIFT_4KB) | va.Offset4KB;
+    res.IsUserAccessible = (va.Pml4Index < 256);
+
+    // 1GB Huge Page Check
+    if (pdpte & (1ULL << 7)) {
+        res.PhysicalAddress = (pdpte & 0x000FFFFFC0000000ULL) + (vaInt & 0x3FFFFFFFULL);
+        res.PageSize = PAGE_SIZE_1GB;
+        res.IsPresent = true;
+        res.IsWritable = (pdpte & (1ULL << 1)) != 0;
+        res.IsExecutable = (pdpte & (1ULL << 63)) == 0;
+        return res;
+    }
+
+    const ULONG64 pdBase = pdpte & 0x000FFFFFFFFFF000ULL;
+    const ULONG64 pdIndex = va.PdIndex;
+    ULONG64 pde = 0;
+    if (PhysicalMemory::ReadPhysicalAddress(pdBase + (pdIndex * 8), &pde, sizeof(pde), &bytesRead) != STATUS_SUCCESS || !(pde & 1ULL)) {
+        return kstd::expected<TranslationResult>::error(STATUS_UNSUCCESSFUL);
+    }
+
+    // 2MB Large Page Check
+    if (pde & (1ULL << 7)) {
+        res.PhysicalAddress = (pde & 0x000FFFFFFFE00000ULL) + (vaInt & 0x1FFFFFULL);
+        res.PageSize = PAGE_SIZE_2MB;
+        res.IsPresent = true;
+        res.IsWritable = (pde & (1ULL << 1)) != 0;
+        res.IsExecutable = (pde & (1ULL << 63)) == 0;
+        return res;
+    }
+
+    const ULONG64 ptBase = pde & 0x000FFFFFFFFFF000ULL;
+    const ULONG64 ptIndex = va.PtIndex;
+    ULONG64 pte = 0;
+    if (PhysicalMemory::ReadPhysicalAddress(ptBase + (ptIndex * 8), &pte, sizeof(pte), &bytesRead) != STATUS_SUCCESS || !(pte & 1ULL)) {
+        return kstd::expected<TranslationResult>::error(STATUS_UNSUCCESSFUL);
+    }
+
+    res.PhysicalAddress = (pte & 0x000FFFFFFFFFF000ULL) + va.Offset4KB;
     res.PageSize = PAGE_SIZE_4KB;
     res.IsPresent = true;
-    res.IsWritable = true;
-    res.IsUserAccessible = (va.Pml4Index < 256);
-    res.IsExecutable = true;
+    res.IsWritable = (pte & (1ULL << 1)) != 0;
+    res.IsExecutable = (pte & (1ULL << 63)) == 0;
 
     return res;
 }
