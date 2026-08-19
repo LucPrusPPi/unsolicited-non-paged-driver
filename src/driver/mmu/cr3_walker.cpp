@@ -7,7 +7,7 @@ namespace unpd::mmu {
 #if UNPD_FEATURE_CR3_PML4_OPERATIONS
 
 ULONG64 Cr3Walker::TranslateVirtualToPhysical(ULONG64 cr3, ULONG64 virtualAddress) {
-    if (!cr3 || !virtualAddress) {
+    if (!cr3 || !virtualAddress || !IsCanonical(virtualAddress)) {
         return 0;
     }
 
