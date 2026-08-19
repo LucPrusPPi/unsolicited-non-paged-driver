@@ -18,43 +18,51 @@ LANGUAGE_RULES = {
     "C++": {
         "extensions": [".cpp", ".hpp"],
         "color": "🔴",
+        "badge": "https://img.shields.io/badge/C%2B%2B-20-blue.svg?style=flat-square",
         "description": "Kernel driver core (unpd.sys), MMU paging engine, client SDK, and GoogleTest harness"
-    },
-    "C": {
-        "patterns": ["common.h"],
-        "color": "⚪",
-        "description": "Ring-0/Ring-3 shared IOCTL protocol definitions and NT status constants"
-    },
-    "Assembly": {
-        "extensions": [".asm"],
-        "color": "🟤",
-        "description": "x86-64 MASM low-level control registers, memory barriers, SSE4.2 CRC32, and atomics"
     },
     "Lua": {
         "extensions": [".lua"],
         "color": "🌙",
+        "badge": "https://img.shields.io/badge/Lua-5.4-blueviolet.svg?style=flat-square",
         "description": "MMU translation simulator, binary packet codec, telemetry profiler, and fuzzer"
     },
     "Python": {
         "extensions": [".py"],
         "color": "🔵",
+        "badge": "https://img.shields.io/badge/Python-3.11-brightgreen.svg?style=flat-square",
         "description": "Latency percentile analyzer, Win32 SCM controller, template customizer, and fuzzer"
+    },
+    "Assembly": {
+        "extensions": [".asm"],
+        "color": "🟤",
+        "badge": "https://img.shields.io/badge/MASM-x64-orange.svg?style=flat-square",
+        "description": "x86-64 MASM low-level control registers, memory barriers, SSE4.2 CRC32, and atomics"
     },
     "PowerShell": {
         "extensions": [".ps1"],
         "color": "🔷",
+        "badge": "https://img.shields.io/badge/PowerShell-5.1%2B-blue.svg?style=flat-square",
         "description": "Windows automated build runners, SCM service managers, SignTool, and VM setup"
     },
     "Shell": {
         "extensions": [".sh"],
         "color": "🟢",
+        "badge": "https://img.shields.io/badge/Shell-POSIX%20%2F%20Bash-success.svg?style=flat-square",
         "description": "POSIX / Git Bash / WSL build scripts, package release, and CI check wrappers"
     },
     "CMake": {
         "extensions": [".cmake"],
         "filenames": ["CMakeLists.txt"],
         "color": "🔴",
+        "badge": "https://img.shields.io/badge/CMake-3.25%2B-red.svg?style=flat-square",
         "description": "Cross-compiler build orchestration, vcpkg exports, and target configurations"
+    },
+    "C": {
+        "patterns": ["common.h"],
+        "color": "⚪",
+        "badge": "https://img.shields.io/badge/C-C99%2FC11-lightgrey.svg?style=flat-square",
+        "description": "Ring-0/Ring-3 shared IOCTL protocol definitions and NT status constants"
     }
 }
 
@@ -64,20 +72,17 @@ def scan_repository():
     stats = {lang: {"files": 0, "lines": 0, "bytes": 0} for lang in LANGUAGE_RULES}
 
     for root, dirs, files in os.walk(ROOT_DIR):
-        # Filter out ignored directories
         dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
 
         for file in files:
             file_path = Path(root) / file
             rel_path = file_path.relative_to(ROOT_DIR)
 
-            # Skip root build artifacts or temporary files
             if any(part in IGNORE_DIRS for part in rel_path.parts):
                 continue
 
             matched_lang = None
 
-            # Special case for C (common.h)
             if file == "common.h":
                 matched_lang = "C"
             else:
@@ -114,17 +119,23 @@ def generate_markdown(stats):
     total_lines = sum(s["lines"] for s in stats.values())
     total_files = sum(s["files"] for s in stats.values())
 
-    # Sort languages by bytes descending
     sorted_langs = sorted(stats.items(), key=lambda x: x[1]["bytes"], reverse=True)
 
     lines = []
-    lines.append("# UNPD Repository Language Metrics & Breakdown")
+    lines.append("<div align=\"center\">")
     lines.append("")
-    lines.append("Automated codebase composition and language distribution metrics for the **Unsolicited Non-Paged Driver (UNPD)** repository.")
+    lines.append("# UNPD Repository Language Metrics")
+    lines.append("")
+    lines.append("[![Top Language](https://img.shields.io/github/languages/top/LucPrusPPi/unsolicited-non-paged-driver?style=flat-square)](https://github.com/LucPrusPPi/unsolicited-non-paged-driver)")
+    lines.append("[![Language Count](https://img.shields.io/github/languages/count/LucPrusPPi/unsolicited-non-paged-driver?style=flat-square)](https://github.com/LucPrusPPi/unsolicited-non-paged-driver)")
+    lines.append("[![Code Size](https://img.shields.io/github/languages/code-size/LucPrusPPi/unsolicited-non-paged-driver?style=flat-square)](https://github.com/LucPrusPPi/unsolicited-non-paged-driver)")
+    lines.append("[![Repo Size](https://img.shields.io/github/repo-size/LucPrusPPi/unsolicited-non-paged-driver?style=flat-square)](https://github.com/LucPrusPPi/unsolicited-non-paged-driver)")
+    lines.append("")
+    lines.append("</div>")
     lines.append("")
     lines.append("---")
     lines.append("")
-    lines.append("## Language Distribution Summary")
+    lines.append("## Real-Time Language Distribution")
     lines.append("")
     lines.append("| Language | Distribution Bar | Share (%) | Files | Code Lines (SLOC) | Size (Bytes) |")
     lines.append("|:---|:---|:---:|:---:|:---:|:---:|")
@@ -152,7 +163,7 @@ def generate_markdown(stats):
     lines.append("---")
     lines.append("")
     lines.append("> [!NOTE]")
-    lines.append("> This report is verified and maintained by `scripts/python/update_language_stats.py`.")
+    lines.append("> This report is automatically verified and maintained on every push by GitHub Actions via `scripts/python/update_language_stats.py`.")
     lines.append("")
 
     return "\n".join(lines)

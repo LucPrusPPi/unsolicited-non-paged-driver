@@ -1,22 +1,29 @@
-# UNPD Repository Language Metrics & Breakdown
+<div align="center">
 
-Automated codebase composition and language distribution metrics for the **Unsolicited Non-Paged Driver (UNPD)** repository.
+# UNPD Repository Language Metrics
+
+[![Top Language](https://img.shields.io/github/languages/top/LucPrusPPi/unsolicited-non-paged-driver?style=flat-square)](https://github.com/LucPrusPPi/unsolicited-non-paged-driver)
+[![Language Count](https://img.shields.io/github/languages/count/LucPrusPPi/unsolicited-non-paged-driver?style=flat-square)](https://github.com/LucPrusPPi/unsolicited-non-paged-driver)
+[![Code Size](https://img.shields.io/github/languages/code-size/LucPrusPPi/unsolicited-non-paged-driver?style=flat-square)](https://github.com/LucPrusPPi/unsolicited-non-paged-driver)
+[![Repo Size](https://img.shields.io/github/repo-size/LucPrusPPi/unsolicited-non-paged-driver?style=flat-square)](https://github.com/LucPrusPPi/unsolicited-non-paged-driver)
+
+</div>
 
 ---
 
-## Language Distribution Summary
+## Real-Time Language Distribution
 
 | Language | Distribution Bar | Share (%) | Files | Code Lines (SLOC) | Size (Bytes) |
 |:---|:---|:---:|:---:|:---:|:---:|
-| 🔴 **C++** | `██████████░░░░░░░░` | **57.22%** | 33 | 4,765 | 146,417 B |
-| 🌙 **Lua** | `██░░░░░░░░░░░░░░░░` | **10.63%** | 7 | 797 | 27,186 B |
-| 🔵 **Python** | `██░░░░░░░░░░░░░░░░` | **10.48%** | 7 | 743 | 26,815 B |
-| 🟤 **Assembly** | `█░░░░░░░░░░░░░░░░░` | ** 5.29%** | 1 | 515 | 13,539 B |
-| 🔷 **PowerShell** | `█░░░░░░░░░░░░░░░░░` | ** 5.15%** | 5 | 324 | 13,181 B |
-| 🟢 **Shell** | `█░░░░░░░░░░░░░░░░░` | ** 4.84%** | 7 | 345 | 12,395 B |
-| 🔴 **CMake** | `█░░░░░░░░░░░░░░░░░` | ** 3.61%** | 1 | 272 | 9,248 B |
-| ⚪ **C** | `░░░░░░░░░░░░░░░░░░` | ** 2.77%** | 1 | 217 | 7,085 B |
-| **Total** | | **100.00%** | **62** | **7,978** | **255,866 B** |
+| 🔴 **C++** | `██████████░░░░░░░░` | **56.80%** | 33 | 4,765 | 146,417 B |
+| 🔵 **Python** | `██░░░░░░░░░░░░░░░░` | **11.14%** | 7 | 768 | 28,715 B |
+| 🌙 **Lua** | `██░░░░░░░░░░░░░░░░` | **10.55%** | 7 | 797 | 27,186 B |
+| 🟤 **Assembly** | `█░░░░░░░░░░░░░░░░░` | ** 5.25%** | 1 | 515 | 13,539 B |
+| 🔷 **PowerShell** | `█░░░░░░░░░░░░░░░░░` | ** 5.11%** | 5 | 324 | 13,181 B |
+| 🟢 **Shell** | `█░░░░░░░░░░░░░░░░░` | ** 4.81%** | 7 | 345 | 12,395 B |
+| 🔴 **CMake** | `█░░░░░░░░░░░░░░░░░` | ** 3.59%** | 1 | 272 | 9,248 B |
+| ⚪ **C** | `░░░░░░░░░░░░░░░░░░` | ** 2.75%** | 1 | 217 | 7,085 B |
+| **Total** | | **100.00%** | **62** | **8,003** | **257,766 B** |
 
 ---
 
@@ -25,8 +32,8 @@ Automated codebase composition and language distribution metrics for the **Unsol
 | Language | Primary Role & Responsibility in UNPD |
 |:---|:---|
 | 🔴 **C++** | Kernel driver core (unpd.sys), MMU paging engine, client SDK, and GoogleTest harness |
-| 🌙 **Lua** | MMU translation simulator, binary packet codec, telemetry profiler, and fuzzer |
 | 🔵 **Python** | Latency percentile analyzer, Win32 SCM controller, template customizer, and fuzzer |
+| 🌙 **Lua** | MMU translation simulator, binary packet codec, telemetry profiler, and fuzzer |
 | 🟤 **Assembly** | x86-64 MASM low-level control registers, memory barriers, SSE4.2 CRC32, and atomics |
 | 🔷 **PowerShell** | Windows automated build runners, SCM service managers, SignTool, and VM setup |
 | 🟢 **Shell** | POSIX / Git Bash / WSL build scripts, package release, and CI check wrappers |
@@ -36,4 +43,4 @@ Automated codebase composition and language distribution metrics for the **Unsol
 ---
 
 > [!NOTE]
-> This report is verified and maintained by `scripts/python/update_language_stats.py`.
+> This report is automatically verified and maintained on every push by GitHub Actions via `scripts/python/update_language_stats.py`.
