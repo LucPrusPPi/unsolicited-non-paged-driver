@@ -2,13 +2,14 @@
 
 # Unsolicited Non-Paged Driver (UNPD)
 
-An academic-grade, modern C++20 Windows Kernel Driver framework, zero-copy shared memory engine, and automated GoogleTest test-signing harness.
+An academic-grade, modern C++20 Windows Kernel Driver framework, universal memory manager, x86-64 MMU paging engine, and automated GoogleTest test-signing harness.
 
-[![CI Pipeline](https://img.shields.io/badge/build-passing-brightgreen.svg?style=flat-square)]()
-[![GoogleTest](https://img.shields.io/badge/tests-22%20passed-success.svg?style=flat-square)]()
+[![CI Pipeline](https://img.shields.io/badge/CI%20Matrix-6%2F6%20passing-brightgreen.svg?style=flat-square)](https://github.com/LucPrusPPi/unsolicited-non-paged-driver/actions)
+[![GoogleTest](https://img.shields.io/badge/tests-29%20passed-success.svg?style=flat-square)]()
 [![C++ Standard](https://img.shields.io/badge/C%2B%2B-20-blue.svg?style=flat-square)]()
 [![Architecture](https://img.shields.io/badge/arch-x64%20%2F%20MASM64-orange.svg?style=flat-square)]()
-[![Memory Subsystem](https://img.shields.io/badge/pool-NonPagedPoolNx%20%2F%20MDL-yellow.svg?style=flat-square)]()
+[![MMU Paging](https://img.shields.io/badge/MMU-CR3%20%2F%20PML4%20%2F%20PTE-red.svg?style=flat-square)]()
+[![Memory Engine](https://img.shields.io/badge/memory-MDL%20%7C%20Pool%20%7C%20Slab%20%7C%20Section-yellow.svg?style=flat-square)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20x64-informational.svg?style=flat-square)]()
 [![Package Manager](https://img.shields.io/badge/vcpkg-supported-purple.svg?style=flat-square)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)]()
@@ -19,13 +20,15 @@ An academic-grade, modern C++20 Windows Kernel Driver framework, zero-copy share
 
 ## Overview and Motivation
 
-Windows kernel driver development has historically suffered from fragmented C-style boilerplates, error-prone manual memory deallocation sequences, and fragile testing workflows. UNPD establishes a modern, idiomatically structured baseline for 64-bit Windows NT driver engineering.
+Windows kernel driver development has historically suffered from fragmented C-style boilerplates, error-prone manual memory deallocation sequences, and fragile testing workflows. UNPD establishes an extensible, modern, and idiomatically structured template for 64-bit Windows NT driver engineering.
 
-Built from the ground up for Windows 10 and Windows 11 x64, UNPD demonstrates:
-- How to write native C++20 kernel drivers with zero-cost RAII synchronization guards.
-- Zero-copy shared memory ring-buffering between user space and kernel space via physical MDL mapping.
-- Lock-free atomic double-buffering page swaps for high-throughput sensor/event streaming.
-- Complete GoogleTest (GTest) automated test harness running natively on developer machines, GitHub Actions CI, and virtualized Windows Test Mode targets.
+Built from the ground up for Windows 10 and Windows 11 x64, UNPD provides:
+- **Modular Universal Memory**: Physical zero-copy MDL mapping, tracked NonPagedPoolNx, Lookaside slab pools (64B..4KB), and named shared section mapping.
+- **x86-64 MMU & Paging Engine**: Complete bitfield models for CR3, PML4, PDPTE, PDE, and PTE entries, address decomposition, PFN arithmetic, and process memory primitives (`ZwAllocateVirtualMemory`, `KeStackAttachProcess`, SEH probes).
+- **Kernel C++20 STL (`kstd`)**: Freestanding `kstd::span<T>`, `kstd::expected<T, NTSTATUS>`, and `kstd::unique_ptr<T, Tag>`.
+- **Public C++20 Usermode Client SDK**: High-level RAII client (`include/unpd/client.hpp`) with automated loopback fallback for CI environments.
+- **Hardware Assembly (MASM64)**: Ring-0 memory fences, cycle counters (`rdtsc`/`rdtscp`), CR0..CR4, MSRs, and TLB invalidation (`invlpg`, `wbinvd`, CR3 reload).
+- **Automated Matrix CI**: 6-job matrix in GitHub Actions (MSVC & Clang-CL in Release and Debug, Python tooling validation, schema audit) with 29 automated tests.
 
 ---
 
@@ -52,8 +55,9 @@ Built from the ground up for Windows 10 and Windows 11 x64, UNPD demonstrates:
  |  - MmAllocatePagesForMdlEx  |                     |
  |  - MmMapLockedPages         |                     v
  |  - Slab Cache (64B..4KB)    |     +-------------------------------+
- |  - RAII Spinlocks / Mutexes |     |    Non-Paged Pool Manager     |
- |  - MASM64 Memory Barriers   |     |    ExAllocatePool2 ('UNPD')   |
+ |  - RAII Spinlocks / Mutexes |     |    Universal Memory Manager   |
+ |  - MASM64 Memory Barriers   |     |    - Non-Paged Pool (ExAlloc2)|
+ |  - MMU 4-Level Page Walking |     |    - Lookaside Lists          |
  +-----------------------------+     +-------------------------------+
 ```
 
@@ -61,64 +65,56 @@ Built from the ground up for Windows 10 and Windows 11 x64, UNPD demonstrates:
 
 ## Key Technical Subsystems
 
-### 1. Zero-Copy Shared Memory & Double Buffering
-Instead of paying the cost of IRP dispatching and kernel-to-user buffer copying on every transaction, UNPD allocates contiguous physical pages using `MmAllocatePagesForMdlEx` and maps them directly into the calling user process address space using `MmMapLockedPagesSpecifyCache` with `UserMode` and `MdlMappingNoExecute`.
+### 1. Universal Memory Manager (`unpd::memory::UniversalMemoryManager`)
+- **`PhysicalMdlZeroCopy`**: Physical RAM allocation with zero-copy user-space mapping (`MmMapLockedPagesSpecifyCache` with `MdlMappingNoExecute`).
+- **`SystemPoolNonPaged`**: Tagged NonPagedPoolNx allocations with handle tracking.
+- **`SlabCachePool`**: O(1) Lookaside lists for 64B, 256B, 1024B, and 4096B block caches.
+- **`KernelSectionShared`**: Cross-process and user-kernel shared sections.
+- **`DirectNeitherBuffer`**: Safe user-mode pointer validation with SEH isolation.
 
-- **Atomic Buffer Swapping**: The driver controller swaps the active and standby buffers using `InterlockedExchange` and MASM64 hardware memory fences (`mfence`), providing microsecond-level synchronization without system call overhead.
-- **Slab Cache Allocator**: Features fixed-size slab pools for 64-byte, 256-byte, 1024-byte, and 4096-byte blocks with lockless free-list caching to eliminate non-paged pool fragmentation.
+### 2. Hardware MMU & 4-Level x86-64 Paging (`unpd::mmu::PagingEngine`)
+- Bitfield-accurate structures for 48-bit canonical linear addresses (`VIRTUAL_ADDRESS_64`), `CR3_REGISTER_64`, `PML4_ENTRY_64`, `PDPT_ENTRY_64` (1GB Huge Page support), `PD_ENTRY_64` (2MB Large Page support), and `PT_ENTRY_64`.
+- Software page table walking from CR3 to physical PFN.
+- Process address space switching via `ProcessAttachmentGuard` (`KeStackAttachProcess` / `KeUnstackDetachProcess`).
+- Virtual page allocation and commit via `ZwAllocateVirtualMemory` / `ZwFreeVirtualMemory`.
+- TLB invalidation primitives: `UnpdInvlpg` (`invlpg`), `UnpdWbinvd` (`wbinvd`), `UnpdFlushTlb`.
 
-### 2. Modern C++20 RAII in Kernel Space
-Compiled with MSVC and Clang-CL using `/kernel /GR- /EHsc-`:
-- `unpd::SpinlockGuard`: Acquires `KSPIN_LOCK` and restores the previous IRQL level upon destruction.
-- `unpd::FastMutexGuard`: Manages `FAST_MUTEX` acquisition at `APC_LEVEL`.
-- `unpd::PoolAllocation`: RAII smart pointer wrapping `ExAllocatePool2` with automatic tagged deallocation.
+### 3. Freestanding Kernel C++20 Toolkit (`kstd`)
+- `kstd::span<T>`: Type-safe memory views without CRT dependencies.
+- `kstd::expected<T, NTSTATUS>`: Value-or-status container for exception-free error propagation.
+- `kstd::unique_ptr<T, Tag>`: Automatic tagged pool cleanup on scope exit.
 
-### 3. Defensive Buffer Validation
-All user-mode virtual addresses submitted through `METHOD_NEITHER` are explicitly aligned and validated using `ProbeForRead` and `ProbeForWrite` wrapped inside Structured Exception Handling (`__try` / `__except`) to eliminate BugCheck vulnerabilities.
-
----
-
-## System Requirements
-
-| Component | Minimum Requirement | Recommended |
-|---|---|---|
-| Host Operating System | Windows 10 x64 (21H2+) | Windows 11 x64 (23H2+) |
-| Compiler | MSVC v143 (VS 2022) or Clang-CL 17+ | Clang-CL 22+ / MSVC 19.44+ |
-| Windows SDK / WDK | 10.0.22621.0 | 10.0.28000.0+ |
-| Build System | CMake 3.20+ & Ninja 1.11+ | CMake 3.28+ & Ninja 1.12+ |
-| Test Target | VMWare Workstation / Hyper-V (Testmode) | VMWare Workstation 17 Pro |
+### 4. Usermode Client SDK (`include/unpd/client.hpp`)
+- `unpd::DriverClient`: Connects to `\\.\UnsolicitedNonPagedDriver`, manages shared memory sessions, atomic buffer swapping, and slab allocations with automatic mock fallback for non-kernel test environments.
 
 ---
 
 ## Quickstart & Build Instructions
 
-The project provides automated dual-compiler detection for both Microsoft Visual C++ (`cl.exe`) and LLVM Clang (`clang-cl.exe`).
-
-### Build with Clang (Default if installed in `C:\LLVM`)
+### Build with Clang-CL
 ```powershell
 .\build.ps1 -Compiler Clang -Config Release -Sign
 ```
 
-### Build with Microsoft Visual C++
+### Build with MSVC
 ```powershell
 .\build.ps1 -Compiler MSVC -Config Release -Sign
 ```
 
-Output binaries are generated in `build/bin/`:
-- `unpd.sys`: Digitally signed Windows kernel driver binary.
-- `unpd_tests.exe`: Standalone GoogleTest validation suite.
-- `unpd_test_root.cer`: Exported X.509 test root certificate.
+### 1-Click Template Customizer (Rebranding)
+To instantiate this template for a new driver project:
+```bash
+python scripts/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
+```
 
 ---
 
-## GoogleTest Validation Suite
-
-The test suite runs in dual mode: against a live kernel driver in Windows Test Mode VMs, or in simulated loopback mode during CI runs.
+## GoogleTest Validation Suite (29 Tests)
 
 | Test Suite | Test Case | Type | Expected Result |
 |---|---|---|---|
 | `IoctlTest` | `Ping_ValidSequence` | Functional | Roundtrip sequence validation (`Seq + 1`) |
-| `IoctlTest` | `Ping_TimestampPrecision` | Telemetry | Kernel timestamp monotonically increasing |
+| `IoctlTest` | `Ping_TimestampPrecision` | Telemetry | Monotonically increasing kernel timestamp |
 | `IoctlTest` | `AllocateAndFree_SingleBuffer` | Memory | 1 KB NonPagedPoolNx allocation and deallocation |
 | `IoctlTest` | `AllocateMultiple_CheckHandles` | Stress | 16 concurrent distinct buffer allocations |
 | `IoctlTest` | `Free_InvalidHandle_ReturnsError` | Negative | Correct error returned on invalid handle |
@@ -139,22 +135,13 @@ The test suite runs in dual mode: against a live kernel driver in Windows Test M
 | `StressTest` | `ConcurrentPing_16Threads` | Concurrency | 16 threads firing simultaneous IOCTL requests |
 | `StressTest` | `ConcurrentAllocFree_8Threads` | Concurrency | 8 threads allocating and freeing pool buffers |
 | `StressTest` | `ConcurrentBufferSwaps_4Threads` | Concurrency | 4 threads executing high-frequency buffer swaps |
-
----
-
-## Testing in VMWare Workstation
-
-1. Disable Secure Boot in VMWare VM Settings under Options -> Advanced.
-2. Copy `build/bin/unpd.sys`, `build/bin/unpd_tests.exe`, `unpd_test_root.cer`, and `scripts/` to the VM.
-3. Open an Administrator PowerShell inside the VM and run:
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\scripts\Setup-VM.ps1 -CertPath .\unpd_test_root.cer
-   shutdown /r /t 0
-   ```
-4. After rebooting into Test Mode, execute the test suite:
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\scripts\Run-Tests.ps1 -SkipBuild
-   ```
+| `MmuPagingTest` | `StructureSizes_Exact64Bits` | MMU | Verifies 64-bit sizes of CR3, PML4, PDP, PD, PTE |
+| `MmuPagingTest` | `VirtualAddressDecomposition_CanonicalAddress` | MMU | Decomposes canonical 48-bit address into indices |
+| `MmuPagingTest` | `AlignmentHelpers_ArithmeticCorrectness` | MMU | Validates AlignUp, AlignDown, IsAligned templates |
+| `MmuPagingTest` | `LargePageOffsets_2MBAnd1GB` | MMU | Validates 2MB and 1GB large page offset extraction |
+| `MmuPagingTest` | `PtEntry_BitfieldsVerification` | MMU | Verifies PTE bitfields (Present, PFN, NX, RW) |
+| `MmuPagingTest` | `KstdSpan_MemoryViewOperations` | Kernel STL | Validates kstd::span slicing and element access |
+| `MmuPagingTest` | `KstdExpected_SuccessAndErrorHandling` | Kernel STL | Validates kstd::expected value-or-status mechanics |
 
 ---
 
@@ -162,26 +149,36 @@ The test suite runs in dual mode: against a live kernel driver in Windows Test M
 
 ```
 .
-├── .github/                    # GitHub Actions CI and issue templates
-│   ├── workflows/ci.yml        # Matrix build and GoogleTest validation pipeline
-│   ├── ISSUE_TEMPLATE/         # Bug report and feature request templates
-│   └── pull_request_template.md# Pull request review checklist
+├── .gemini/skills/             # Engineering policy and workflow skills
+│   ├── doc-update-policy/      # Continuous documentation synchronization skill
+│   ├── winapi-kernel-doc-policy/# NT API and IRQL documentation policy
+│   └── kernel-driver-dev/      # Kernel driver engineering guidelines
+├── .github/workflows/          # GitHub Actions CI matrix
+│   └── ci.yml                  # 6-job matrix pipeline (MSVC/Clang-CL/Python/Audit)
 ├── cmake/                      # CMake package export configurations
 │   └── unpdConfig.cmake.in     # Package configuration template for find_package
 ├── docs/                       # Technical documentation
-│   ├── ARCHITECTURE.md         # Kernel internals and memory lifecycle
-│   ├── IOCTL_PROTOCOL.md       # IOCTL packet specifications
+│   ├── ARCHITECTURE.md         # Kernel internals, MMU paging, and memory lifecycle
+│   ├── IOCTL_PROTOCOL.md       # Complete 11-opcode IOCTL specification
 │   └── VM_SETUP.md             # VMWare testmode and WinDbg guide
 ├── include/unpd/               # Public and kernel headers
+│   ├── client.hpp              # Public C++20 Usermode Client SDK
 │   ├── common.h                # IOCTL opcodes, magic constants, and packet structs
+│   ├── config.hpp              # Master template configuration header
 │   ├── dispatch.hpp            # IRP dispatch declarations and device extension
+│   ├── kernel_asm.hpp          # Ring-0 MASM64 hardware prototypes
 │   ├── kernel_raii.hpp         # RAII primitives for kernel spinlocks and mutexes
 │   ├── page_engine.hpp         # Zero-copy shared memory and slab cache interfaces
-│   └── security.hpp            # User buffer validation helpers
-├── ports/                      # vcpkg registry port
-│   └── unsolicited-non-paged-driver/
-│       ├── portfile.cmake      # vcpkg port recipe
-│       └── vcpkg.json          # vcpkg package metadata
+│   ├── security.hpp            # User buffer validation helpers
+│   ├── kstd/                   # Freestanding Kernel C++20 STL
+│   │   ├── kstd_span.hpp       # Type-safe memory view span
+│   │   ├── kstd_expected.hpp   # Value-or-NTSTATUS error container
+│   │   └── kstd_unique_ptr.hpp # RAII smart pointer for tagged kernel pool
+│   ├── memory/                 # Universal Multi-Strategy Memory Subsystem
+│   │   └── universal_memory.hpp# MDL, System Pool, Sections, and Slab caches
+│   └── mmu/                    # Hardware MMU & Paging Subsystem
+│       ├── paging_types.hpp    # x86-64 CR3, PML4, PDP, PD, PTE bitfields
+│       └── paging_engine.hpp   # Page walking, process attach, virtual memory
 ├── src/
 │   ├── driver/                 # Kernel driver implementation (unpd.sys)
 │   │   ├── driver_entry.cpp    # DriverEntry and deterministic teardown
@@ -189,38 +186,36 @@ The test suite runs in dual mode: against a live kernel driver in Windows Test M
 │   │   ├── ioctl_handler.cpp   # Safe IOCTL handler logic
 │   │   ├── memory_manager.cpp  # Non-paged pool tracking and handle manager
 │   │   ├── page_engine.cpp     # Physical MDL mapping and atomic buffer swap
-│   │   ├── kernel_asm.asm      # x64 MASM low-level hardware memory barriers
-│   │   └── unpd.rc             # Windows PE version metadata
+│   │   ├── kernel_asm.asm      # x64 MASM low-level hardware memory barriers & MMU
+│   │   ├── unpd.rc             # Windows PE version metadata
+│   │   ├── memory/             # Universal memory implementations
+│   │   │   └── universal_memory.cpp # Multi-strategy memory management
+│   │   └── mmu/                # MMU & paging implementations
+│   │       └── paging_engine.cpp    # Page table walker & process memory
 │   └── tests/                  # GoogleTest test harness (unpd_tests.exe)
-│       ├── test_client.hpp     # Win32 driver client wrapper with CI mock fallback
+│       ├── test_client.hpp     # Forwards to public SDK client header
 │       ├── test_gtest_main.cpp # GTest entrypoint
 │       ├── gtest_ioctl.cpp     # IOCTL functional tests
 │       ├── gtest_page_engine.cpp# Shared memory and slab cache tests
 │       ├── gtest_fuzzing.cpp   # Adversarial boundary and buffer fuzzing tests
-│       └── gtest_stress.cpp    # Multithreaded concurrency stress tests
-├── scripts/                    # Automation scripts
-│   ├── bench_latency.py        # Python benchmark test runner
-│   ├── Deploy-Driver.ps1       # SCM driver service manager (create, start, stop, delete)
+│       ├── gtest_stress.cpp    # Multithreaded concurrency stress tests
+│       └── gtest_mmu.cpp       # MMU bitfields, virtual address & kstd tests
+├── scripts/                    # Automation and tooling scripts
+│   ├── bench_latency.py        # Python latency percentile profiler (p50/p95/p99)
+│   ├── driver_ctl.py           # Win32 SCM service manager via ctypes
+│   ├── fuzz_runner.py          # Boundary and randomized kernel IOCTL fuzzer
+│   ├── init_template.py        # 1-click template customizer and project renamer
+│   ├── verify_pe.py            # PE Authenticode, CFG, ASLR, and DEP inspector
+│   ├── Deploy-Driver.ps1       # SCM driver service manager
 │   ├── Run-Tests.ps1           # End-to-end test execution pipeline
 │   ├── Setup-VM.ps1            # VM testmode and root certificate installer
 │   └── Sign-Driver.ps1         # Certificate generation and SignTool automation
 ├── build.ps1                   # Dual-compiler (MSVC / Clang) 1-click build script
 ├── CMakeLists.txt              # CMake build configuration
-├── CMakePresets.json           # Visual Studio CMake presets
 ├── vcpkg.json                  # vcpkg manifest
-├── CODE_OF_CONDUCT.md          # Contributor Covenant Code of Conduct
-├── CONTRIBUTING.md             # Contribution guidelines
-├── SECURITY.md                 # Security vulnerability disclosure policy
-└── LICENSE                     # MIT License
+├── LICENSE                     # MIT License
+└── SECURITY.md                 # Security disclosure policy
 ```
-
----
-
-## Documentation Links
-
-- [Kernel Architecture & Memory Model](docs/ARCHITECTURE.md)
-- [IOCTL Protocol Specification](docs/IOCTL_PROTOCOL.md)
-- [VMWare & WinDbg KDNET Setup Guide](docs/VM_SETUP.md)
 
 ---
 

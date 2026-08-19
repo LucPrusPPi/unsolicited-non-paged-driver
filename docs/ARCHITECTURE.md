@@ -1,98 +1,139 @@
-# UNPD Kernel Architecture & Design
+# UNPD Kernel Architecture & Design Specification
 
-## Overview
+## 1. Overview & Architectural Goals
 
-The UNPD (Unsolicited Non-Paged Driver) framework is designed around safety, determinism, and high throughput in Windows NT kernel space. It addresses common failure modes in kernel development, including resource leaks during abnormal process termination, unhandled page faults when accessing user buffers, and race conditions during concurrent dispatch.
+The **Unsolicited Non-Paged Driver (UNPD)** framework is designed around deterministic memory management, zero-copy high-throughput communication, and hardware-level transparency in Windows NT kernel space. It serves as an academic and production-grade template for 64-bit Windows driver development.
+
+```
+ +-------------------------------------------------------------------------+
+ |                      Usermode Client / Application                      |
+ |                      [ include/unpd/client.hpp ]                        |
+ +-------------------------------------------------------------------------+
+       | (Mapped User VA)                            | (Win32 DeviceIoControl)
+       |                                             |
+       v                                             v
+ +----------------------------+              +-----------------------------+
+ |  Zero-Copy Shared Pages    |              | \\.\UnsolicitedNonPagedDriver|
+ |  - Buffer A (Active)       |              +-----------------------------+
+ |  - Buffer B (Standby)      |                             |
+ +----------------------------+                             v
+       ^                                     +-----------------------------+
+       | (Atomic Swap & TLB Invalidate)      |   IRP Dispatch Router       |
+       |                                     |   - Type-safe dispatch      |
+ +----------------------------+              |   - SEH Pointer Validation  |
+ |  Universal Memory Manager  |              +-----------------------------+
+ |  - MmAllocatePagesForMdlEx |                             |
+ |  - ExAllocatePool2 ('UNPD')|                             v
+ |  - Lookaside Slab Caches   |              +-----------------------------+
+ |  - Named Shared Sections   |              |  MMU & Process Memory Engine|
+ +----------------------------+              |  - 4-Level Page Table Walk  |
+       |                                     |  - Process Attach / Detach  |
+       v                                     |  - CR3, PML4, PDP, PD, PTE  |
+ +------------------------------------+      +-----------------------------+
+ |     Hardware Assembly Layer        |                     |
+ |     - MASM64 Serialization Fences  |<--------------------+
+ |     - rdtsc / rdtscp / invlpg      |
+ +------------------------------------+
+```
 
 ---
 
-## Driver Lifecycle and Teardown
+## 2. Driver Lifecycle and Teardown Sequence
 
 ```
 [ OS Kernel Loader ] 
         |
         v
   DriverEntry()
+        |---> UniversalMemoryManager::Initialize() (Setup Lookaside lists)
         |---> IoCreateDevice(FILE_DEVICE_UNKNOWN, FILE_DEVICE_SECURE_OPEN)
-        |---> Initialize UNPD_DEVICE_EXTENSION (Spinlocks, Allocation List)
+        |---> Initialize UNPD_DEVICE_EXTENSION (Spinlocks, Allocation Table, Metrics)
         |---> IoCreateSymbolicLink(\\DosDevices\\UnsolicitedNonPagedDriver)
         |---> Register MajorFunction[IRP_MJ_CREATE, IRP_MJ_CLOSE, IRP_MJ_DEVICE_CONTROL]
         |---> Clear DO_DEVICE_INITIALIZING
         v
-  [ Active Serving State ] <---> User-Mode IOCTLs
+  [ Active Serving State ] <---> User-Mode IOCTLs & Zero-Copy Streams
         |
-        v (Service Stop / Unload Request)
+        v (Service Stop / Driver Unload)
   DriverUnload()
-        |---> IoDeleteSymbolicLink()
+        |---> IoDeleteSymbolicLink(\\DosDevices\\UnsolicitedNonPagedDriver)
+        |---> UniversalMemoryManager::Shutdown() (Unmap MDLs, Delete Lookasides)
         |---> Acquire StateLock (KSPIN_LOCK)
-        |---> Iterate and Free all tracked NonPagedPoolNx buffers (ExFreePoolWithTag)
+        |---> Free all tracked NonPagedPoolNx allocations
         |---> Release StateLock
         |---> IoDeleteDevice()
         v
-[ Driver Terminated Cleanly ]
+[ Driver Terminated Cleanly (Zero Leaks) ]
 ```
-
-### Initialization Sequence
-During `DriverEntry`, the driver allocates a device object with an attached device extension (`UNPD_DEVICE_EXTENSION`) containing its synchronization and tracking state. The symbolic link `\\DosDevices\\UnsolicitedNonPagedDriver` is created in the NT object manager namespace, exposing the interface to user-mode callers via `\\.\UnsolicitedNonPagedDriver`. Dispatch routines for create, close, and device control are assigned to the `DriverObject->MajorFunction` table before clearing the `DO_DEVICE_INITIALIZING` bit.
-
-### Teardown Sequence
-During `DriverUnload`, the driver ensures that no lingering kernel allocations or dangling symbolic links remain in memory. The symbolic link is unregistered first to prevent incoming create requests. The device extension spinlock is acquired while iterating over the allocation tracking list, deallocating all registered memory blocks with `ExFreePoolWithTag`. Finally, the device object is deleted with `IoDeleteDevice`.
 
 ---
 
-## Memory Subsystem & Allocation Tracking
+## 3. Universal Multi-Strategy Memory Subsystem
 
-Dynamic memory allocations target non-executable non-paged pool memory using `ExAllocatePool2`:
+The driver supports five distinct memory management strategies via `unpd::memory::UniversalMemoryManager`:
 
-```cpp
-PVOID buffer = ExAllocatePool2(POOL_FLAG_NON_PAGED, size, UNPD_POOL_TAG);
-```
+### 1. Physical MDL Zero-Copy Mapping (`PhysicalMdlZeroCopy`)
+- Allocates contiguous physical RAM pages via `MmAllocatePagesForMdlEx` using `MM_ALLOCATE_PREFER_CONTIGUOUS`.
+- Maps locked pages directly into user-mode address space using `MmMapLockedPagesSpecifyCache` with `UserMode` and `MdlMappingNoExecute` (W^X DEP enforcement).
+- Implements atomic lockless double-buffering page swaps using `InterlockedExchange` and `UnpdMemoryFence()`.
 
-### Subsystem Design
-1. Zero Initialization: `ExAllocatePool2` guarantees zeroed memory, mitigating kernel information leak vulnerabilities (CWE-200).
-2. Execution Prevention: Non-paged memory is mapped non-executable by default, preventing arbitrary shellcode execution in pool memory.
-3. Pool Tagging: Every block is tagged with `'UNPD'` (`0x554E5044`), allowing developers to inspect pool usage via Windows Kernel Debugger:
-   ```text
-   kd> !poolfind UNPD
-   kd> !poolused 2 UNPD
-   ```
-4. Handle Table: Allocations exposed to usermode are assigned 64-bit handles stored in an intrusive doubly-linked list (`LIST_ENTRY`), protected by `devExt->StateLock`.
+### 2. Tracked Non-Paged System Pool (`SystemPoolNonPaged`)
+- Allocates non-executable non-paged memory using `ExAllocatePool2(POOL_FLAG_NON_PAGED, size, 'DPNU')`.
+- All allocations are registered with 64-bit opaque handles in an intrusive doubly-linked list (`LIST_ENTRY`), protected by `devExt->StateLock`.
 
----
+### 3. Fixed-Size Lookaside Slab Cache (`SlabCachePool`)
+- Implements four high-speed cache tiers (64B, 256B, 1024B, 4096B) backed by `NPAGED_LOOKASIDE_LIST`.
+- Allocations and deallocations execute in O(1) time without taking global pool locks, eliminating pool fragmentation.
 
-## Kernel RAII Primitives
+### 4. Kernel Section Shared Memory (`KernelSectionShared`)
+- Creates Section objects (`ZwCreateSection` / `ZwMapViewOfSection`) allowing structured shared memory windows across distinct processes.
 
-The driver implements RAII abstractions in `include/unpd/kernel_raii.hpp` without relying on C++ exceptions or runtime type information:
-
-```cpp
-class SpinlockGuard {
-public:
-    explicit SpinlockGuard(PKSPIN_LOCK lock) noexcept
-        : m_lock(lock), m_oldIrql(PASSIVE_LEVEL) {
-        KeAcquireSpinLock(m_lock, &m_oldIrql);
-    }
-
-    ~SpinlockGuard() noexcept {
-        if (m_lock != nullptr) {
-            KeReleaseSpinLock(m_lock, m_oldIrql);
-        }
-    }
-};
-```
-
-This ensures that spinlocks and fast mutexes are consistently released and IRQL levels are restored upon leaving scope, even during early exit conditions.
+### 5. Direct and Probed User Virtual Buffers (`DirectNeitherBuffer`)
+- Validates user-mode virtual addresses (`METHOD_NEITHER`) using `ProbeForRead` and `ProbeForWrite` wrapped in dedicated Structured Exception Handling (`__try` / `__except`) functions to guarantee zero BugCheck crashes.
 
 ---
 
-## I/O Buffer Transfer Mechanisms
+## 4. Hardware MMU & 4-Level x86-64 Paging Engine
 
-UNPD implements reference handlers for all three Windows I/O transfer methods:
+The driver includes complete bitfield definitions and software walking routines for the x86-64 Long Mode MMU architecture in [include/unpd/mmu/paging_types.hpp](file:///e:/FastFarmer/Unsolicited%20Non-Paged%20Driver/include/unpd/mmu/paging_types.hpp):
 
-### 1. METHOD_BUFFERED
-The I/O Manager allocates an intermediate system buffer in kernel space (`Irp->AssociatedIrp.SystemBuffer`). Used for lightweight control packets (`IOCTL_UNPD_PING`, `IOCTL_UNPD_QUERY_STATS`, `IOCTL_UNPD_ALLOCATE_NONPAGED`, `IOCTL_UNPD_FREE_NONPAGED`).
+### 48-bit Canonical Linear Address Decomposition
+A 64-bit virtual address is partitioned into:
+- `Offset4KB` (Bits 0..11): Byte offset within 4KB physical page.
+- `PtIndex` (Bits 12..20): Index into Page Table (PTE, 512 entries).
+- `PdIndex` (Bits 21..29): Index into Page Directory (PDE, 512 entries).
+- `PdptIndex` (Bits 30..38): Index into Page Directory Pointer Table (PDPTE, 512 entries).
+- `Pml4Index` (Bits 39..47): Index into Page Map Level 4 (PML4E, 512 entries).
+- `SignExtension` (Bits 48..63): Must match Bit 47 for canonical compliance.
 
-### 2. METHOD_OUT_DIRECT
-The I/O Manager creates a Memory Descriptor List (`MDL`) describing the caller pages and locks them in physical memory. The driver maps the MDL safely using `MmGetSystemAddressForMdlSafe(irp->MdlAddress, NormalPagePriority | MdlMappingNoExecute)` for high-throughput zero-copy transfers.
+### Hardware Page Table Entries
+- `CR3_REGISTER_64`: PML4 physical base address, PCID (Process Context Identifier), PWT, PCD.
+- `PML4_ENTRY_64`, `PDPT_ENTRY_64`, `PD_ENTRY_64`, `PT_ENTRY_64`: Bitfields for Present, Writable, User/Supervisor, WriteThrough, CacheDisable, Accessed, Dirty, LargePage (1GB/2MB), Global, PAT, PageFrameNumber (PFN), and ExecuteDisable (NX).
 
-### 3. METHOD_NEITHER
-Raw user-mode virtual addresses are provided in `irpSp->Parameters.DeviceIoControl.Type3InputBuffer` and `irp->UserBuffer`. The driver performs alignment checks and boundary probing via `ProbeForRead` and `ProbeForWrite` enclosed in `__try` / `__except` blocks to trap invalid addresses without causing a BugCheck.
+### Process Address Space Operations (`unpd::mmu::PagingEngine`)
+- `ProcessAttachmentGuard`: RAII switcher for process address spaces (`KeStackAttachProcess` / `KeUnstackDetachProcess`) with APC state preservation.
+- `AllocateProcessMemory` / `FreeProcessMemory`: Allocates committed virtual pages inside a target process (`ZwAllocateVirtualMemory` / `ZwFreeVirtualMemory`).
+- `SafeCopyProcessMemory`: Isolated memory transfers between distinct processes with intermediate kernel buffering and SEH verification.
+- `InvalidatePage` (`invlpg`) & `FlushCoreTlb`: Targeted single-page TLB invalidation and full CR3 reload.
+
+---
+
+## 5. Kernel C++20 Standard Toolkit (`kstd`)
+
+Because Microsoft's Standard C++ Library (`<vector>`, `<memory>`, `<expected>`) cannot be used in freestanding `/kernel` mode, UNPD provides its own zero-overhead, exception-free Kernel STL:
+
+- `unpd::kstd::span<T>`: Bounds-checked, type-safe contiguous memory view.
+- `unpd::kstd::expected<T, NTSTATUS>`: Value-or-NTSTATUS container for clean, exception-free error propagation.
+- `unpd::kstd::unique_ptr<T, Tag>`: RAII smart pointer wrapping kernel pool allocations with automatic tagged deallocation.
+
+---
+
+## 6. MASM64 Ring-0 Assembly Layer
+
+Low-level hardware routines are implemented in [src/driver/kernel_asm.asm](file:///e:/FastFarmer/Unsolicited%20Non-Paged%20Driver/src/driver/kernel_asm.asm):
+- `UnpdMemoryFence`, `UnpdLoadFence`, `UnpdStoreFence`: Hardware memory barriers (`mfence`, `lfence`, `sfence`).
+- `UnpdReadTsc`, `UnpdReadTscp`: High-resolution cycle counting with serialization.
+- `UnpdFastCopy64`, `UnpdFastZero64`: High-throughput 64-bit block streaming (`rep movsq`, `rep stosq`).
+- `UnpdReadCr0`..`UnpdReadCr4`, `UnpdWriteCr0`..`UnpdWriteCr4`: Control register access.
+- `UnpdInvlpg`, `UnpdWbinvd`, `UnpdFlushTlb`: TLB and cache management.
+- `UnpdReadMsr`, `UnpdWriteMsr`: Direct Model-Specific Register read/write.
