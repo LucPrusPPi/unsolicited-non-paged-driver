@@ -205,6 +205,7 @@ if(UNPD_BUILD_TESTS)
         src/tests/test_virtual_mmu.cpp
         src/tests/test_kstd.cpp
         src/tests/test_shared_memory.cpp
+        src/tests/test_client_integration.cpp
         src/tests/emulator/virtual_mmu.cpp
         src/driver/comm/shared_memory.cpp
         src/driver/kernel_asm.asm

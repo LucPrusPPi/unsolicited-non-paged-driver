@@ -10,7 +10,9 @@
 #include <vector>
 #include <unordered_map>
 #include <mutex>
+#include <cstring>
 #include "unpd/common.h"
+#include "unpd/comm/shared_memory.hpp"
 
 namespace unpd {
 
@@ -431,6 +433,176 @@ public:
         return ok && bytesReturned == sizeof(resp) && resp.Status == UNPD_STATUS_SUCCESS;
     }
 
+    bool readProcessMemoryCr3(uint64_t cr3, uint64_t virtualAddress, void* buffer, size_t size, size_t& bytesRead) noexcept {
+        bytesRead = 0;
+        if (!cr3 || !virtualAddress || !buffer || size == 0 || size > 16 * 1024 * 1024) {
+            return false;
+        }
+
+        if (m_isMock) {
+            std::memset(buffer, 0xAA, size);
+            bytesRead = size;
+            return true;
+        }
+
+        UNPD_CR3_MEMORY_REQUEST req{};
+        req.Magic = UNPD_MAGIC_REQUEST;
+        req.Cr3 = cr3;
+        req.VirtualAddress = virtualAddress;
+        req.UserBuffer = reinterpret_cast<uint64_t>(buffer);
+        req.Size = size;
+
+        UNPD_CR3_MEMORY_RESPONSE resp{};
+        DWORD bytesReturned = 0;
+        BOOL ok = DeviceIoControl(
+            m_handle,
+            IOCTL_UNPD_READ_PROCESS_CR3,
+            &req,
+            static_cast<DWORD>(sizeof(req)),
+            &resp,
+            static_cast<DWORD>(sizeof(resp)),
+            &bytesReturned,
+            nullptr
+        );
+
+        if (ok && bytesReturned == sizeof(resp) && resp.Status == UNPD_STATUS_SUCCESS) {
+            bytesRead = static_cast<size_t>(resp.BytesTransferred);
+            return true;
+        }
+        return false;
+    }
+
+    bool writeProcessMemoryCr3(uint64_t cr3, uint64_t virtualAddress, const void* buffer, size_t size, size_t& bytesWritten) noexcept {
+        bytesWritten = 0;
+        if (!cr3 || !virtualAddress || !buffer || size == 0 || size > 16 * 1024 * 1024) {
+            return false;
+        }
+
+        if (m_isMock) {
+            bytesWritten = size;
+            return true;
+        }
+
+        UNPD_CR3_MEMORY_REQUEST req{};
+        req.Magic = UNPD_MAGIC_REQUEST;
+        req.Cr3 = cr3;
+        req.VirtualAddress = virtualAddress;
+        req.UserBuffer = reinterpret_cast<uint64_t>(const_cast<void*>(buffer));
+        req.Size = size;
+
+        UNPD_CR3_MEMORY_RESPONSE resp{};
+        DWORD bytesReturned = 0;
+        BOOL ok = DeviceIoControl(
+            m_handle,
+            IOCTL_UNPD_WRITE_PROCESS_CR3,
+            &req,
+            static_cast<DWORD>(sizeof(req)),
+            &resp,
+            static_cast<DWORD>(sizeof(resp)),
+            &bytesReturned,
+            nullptr
+        );
+
+        if (ok && bytesReturned == sizeof(resp) && resp.Status == UNPD_STATUS_SUCCESS) {
+            bytesWritten = static_cast<size_t>(resp.BytesTransferred);
+            return true;
+        }
+        return false;
+    }
+
+    bool queueUserApc(uint32_t targetThreadId, void* userRoutine, void* userContext) noexcept {
+        if (targetThreadId == 0 || userRoutine == nullptr) {
+            return false;
+        }
+
+        if (m_isMock) {
+            return true;
+        }
+
+        UNPD_APC_QUEUE_REQUEST req{};
+        req.Magic = UNPD_MAGIC_REQUEST;
+        req.TargetThreadId = targetThreadId;
+        req.UserRoutine = reinterpret_cast<uint64_t>(userRoutine);
+        req.UserContext = reinterpret_cast<uint64_t>(userContext);
+
+        UNPD_APC_QUEUE_RESPONSE resp{};
+        DWORD bytesReturned = 0;
+        BOOL ok = DeviceIoControl(
+            m_handle,
+            IOCTL_UNPD_QUEUE_KAPC,
+            &req,
+            static_cast<DWORD>(sizeof(req)),
+            &resp,
+            static_cast<DWORD>(sizeof(resp)),
+            &bytesReturned,
+            nullptr
+        );
+
+        return ok && bytesReturned == sizeof(resp) && resp.Status == UNPD_STATUS_SUCCESS;
+    }
+
+    bool cleanPiDdbCache(const wchar_t* driverName, uint32_t timestamp) noexcept {
+        if (!driverName || driverName[0] == L'\0') {
+            return false;
+        }
+
+        if (m_isMock) {
+            return true;
+        }
+
+        UNPD_STEALTH_PIDDB_REQUEST req{};
+        req.Magic = UNPD_MAGIC_REQUEST;
+        req.TimeDateStamp = timestamp;
+        wcsncpy_s(req.DriverName, driverName, 63);
+
+        UNPD_STEALTH_PIDDB_RESPONSE resp{};
+        DWORD bytesReturned = 0;
+        BOOL ok = DeviceIoControl(
+            m_handle,
+            IOCTL_UNPD_CLEAN_PIDDB,
+            &req,
+            static_cast<DWORD>(sizeof(req)),
+            &resp,
+            static_cast<DWORD>(sizeof(resp)),
+            &bytesReturned,
+            nullptr
+        );
+
+        return ok && bytesReturned == sizeof(resp) && resp.Status == UNPD_STATUS_SUCCESS;
+    }
+
+    bool cleanUnloadedDrivers(const wchar_t* driverName, uint64_t bigPoolAddress = 0) noexcept {
+        if ((!driverName || driverName[0] == L'\0') && bigPoolAddress == 0) {
+            return false;
+        }
+
+        if (m_isMock) {
+            return true;
+        }
+
+        UNPD_STEALTH_UNLOADED_REQUEST req{};
+        req.Magic = UNPD_MAGIC_REQUEST;
+        req.BigPoolAddress = bigPoolAddress;
+        if (driverName) {
+            wcsncpy_s(req.DriverName, driverName, 63);
+        }
+
+        UNPD_STEALTH_UNLOADED_RESPONSE resp{};
+        DWORD bytesReturned = 0;
+        BOOL ok = DeviceIoControl(
+            m_handle,
+            IOCTL_UNPD_CLEAN_UNLOADED,
+            &req,
+            static_cast<DWORD>(sizeof(req)),
+            &resp,
+            static_cast<DWORD>(sizeof(resp)),
+            &bytesReturned,
+            nullptr
+        );
+
+        return ok && bytesReturned == sizeof(resp) && resp.Status == UNPD_STATUS_SUCCESS;
+    }
+
 private:
     void initMock() {
         m_mockNextHandle = 100;
@@ -452,8 +624,98 @@ private:
     std::unordered_map<uint64_t, void*> m_mockSharedSessions;
 };
 
+/**
+ * @brief High-level RAII helper for managing zero-copy lockless SharedMemoryChannel sessions.
+ */
+class SharedRingSession {
+public:
+    SharedRingSession(DriverClient& client, uint32_t pageCount = 16)
+        : m_client(client), m_sessionHandle(0), m_userAddress(nullptr), m_totalBytes(0), m_seq(1) {
+        uint32_t bufferSize = 0;
+        if (!m_client.mapSharedMemory(pageCount, m_sessionHandle, m_userAddress, m_totalBytes, bufferSize)) {
+            m_sessionHandle = 0;
+            m_userAddress = nullptr;
+            m_totalBytes = 0;
+        } else if (m_userAddress) {
+            comm::SharedMemoryChannel::Initialize(m_userAddress, static_cast<SIZE_T>(m_totalBytes));
+        }
+    }
+
+    ~SharedRingSession() {
+        if (isValid()) {
+            m_client.unmapSharedMemory(m_sessionHandle);
+            m_sessionHandle = 0;
+            m_userAddress = nullptr;
+        }
+    }
+
+    SharedRingSession(const SharedRingSession&) = delete;
+    SharedRingSession& operator=(const SharedRingSession&) = delete;
+
+    SharedRingSession(SharedRingSession&& other) noexcept
+        : m_client(other.m_client), m_sessionHandle(other.m_sessionHandle),
+          m_userAddress(other.m_userAddress), m_totalBytes(other.m_totalBytes), m_seq(other.m_seq) {
+        other.m_sessionHandle = 0;
+        other.m_userAddress = nullptr;
+    }
+
+    [[nodiscard]] bool isValid() const noexcept {
+        return m_sessionHandle != 0 && m_userAddress != nullptr;
+    }
+
+    [[nodiscard]] void* getBuffer() const noexcept {
+        return m_userAddress;
+    }
+
+    [[nodiscard]] size_t getSize() const noexcept {
+        return static_cast<size_t>(m_totalBytes);
+    }
+
+    bool sendCommand(uint32_t opcode, const void* payload = nullptr, size_t payloadSize = 0) noexcept {
+        if (!isValid() || payloadSize > comm::SHARED_PAYLOAD_SIZE) {
+            return false;
+        }
+
+        comm::SharedCommand cmd{};
+        cmd.Magic = comm::SHARED_MEM_MAGIC_REQ;
+        cmd.Opcode = opcode;
+        cmd.Sequence = m_seq++;
+        cmd.PayloadSize = static_cast<uint32_t>(payloadSize);
+        cmd.Timestamp = 0;
+        if (payload && payloadSize > 0) {
+            std::memcpy(const_cast<uint8_t*>(cmd.Data), payload, payloadSize);
+        }
+
+        return comm::SharedMemoryChannel::PushCommand(m_userAddress, cmd);
+    }
+
+    bool receiveResponse(comm::SharedResponse& resp) noexcept {
+        if (!isValid()) {
+            return false;
+        }
+        return comm::SharedMemoryChannel::PopResponse(m_userAddress, resp);
+    }
+
+    bool swapBuffers() noexcept {
+        if (!isValid()) {
+            return false;
+        }
+        uint32_t active = 0, standby = 0;
+        uint64_t swaps = 0;
+        return m_client.swapBuffers(m_sessionHandle, active, standby, swaps);
+    }
+
+private:
+    DriverClient& m_client;
+    uint64_t m_sessionHandle;
+    void* m_userAddress;
+    uint64_t m_totalBytes;
+    uint32_t m_seq;
+};
+
 namespace test {
     using DriverClient = unpd::DriverClient;
+    using SharedRingSession = unpd::SharedRingSession;
 }
 
 } // namespace unpd
