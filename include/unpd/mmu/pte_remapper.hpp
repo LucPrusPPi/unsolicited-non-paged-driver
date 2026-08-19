@@ -17,9 +17,6 @@ public:
     static ULONG64 GetPtePhysicalAddress(ULONG64 cr3, ULONG64 virtualAddress) {
         if (!cr3 || !virtualAddress) return 0;
 
-#ifndef _KERNEL_MODE
-        return (cr3 & ~0xFFFULL) + 0x100;
-#else
         const ULONG64 pml4Base = cr3 & 0x000FFFFFFFFFF000ULL;
         const ULONG64 pml4Index = (virtualAddress >> 39) & 0x1FFULL;
         ULONG64 pml4e = 0;
@@ -44,7 +41,6 @@ public:
         const ULONG64 ptBase = pde & 0x000FFFFFFFFFF000ULL;
         const ULONG64 ptIndex = (virtualAddress >> 12) & 0x1FFULL;
         return ptBase + (ptIndex * 8);
-#endif
     }
 
     static NTSTATUS MakePageWritable(ULONG64 cr3, ULONG64 virtualAddress) {
