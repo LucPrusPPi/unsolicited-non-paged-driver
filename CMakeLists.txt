@@ -109,6 +109,8 @@ if(EXISTS "${WDK_INC_KM}")
         $<$<COMPILE_LANGUAGE:CXX,C>:/fp:precise>
         $<$<COMPILE_LANGUAGE:CXX,C>:/W4>
         $<$<COMPILE_LANGUAGE:CXX,C>:/WX>
+        $<$<COMPILE_LANGUAGE:CXX,C>:/wd4005>
+        $<$<COMPILE_LANGUAGE:CXX,C>:/wd4083>
         $<$<AND:$<COMPILE_LANGUAGE:CXX,C>,$<CONFIG:Debug>>:/Od>
     )
 
