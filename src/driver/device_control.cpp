@@ -75,6 +75,26 @@ UnpdDeviceControl(
         status = UnpdHandleSlabFree(devExt, Irp, irpSp, &information);
         break;
 
+    case IOCTL_UNPD_READ_PROCESS_CR3:
+        status = UnpdHandleReadProcessCr3(devExt, Irp, irpSp, &information);
+        break;
+
+    case IOCTL_UNPD_WRITE_PROCESS_CR3:
+        status = UnpdHandleWriteProcessCr3(devExt, Irp, irpSp, &information);
+        break;
+
+    case IOCTL_UNPD_QUEUE_KAPC:
+        status = UnpdHandleQueueApc(devExt, Irp, irpSp, &information);
+        break;
+
+    case IOCTL_UNPD_CLEAN_PIDDB:
+        status = UnpdHandleCleanPiDdb(devExt, Irp, irpSp, &information);
+        break;
+
+    case IOCTL_UNPD_CLEAN_UNLOADED:
+        status = UnpdHandleCleanUnloaded(devExt, Irp, irpSp, &information);
+        break;
+
     default:
         status = STATUS_INVALID_DEVICE_REQUEST;
         information = 0;
