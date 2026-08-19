@@ -1,3 +1,4 @@
+#include <unpd/common.h>
 #include <unpd/comm/backend_shared_mem.hpp>
 
 namespace unpd::comm {

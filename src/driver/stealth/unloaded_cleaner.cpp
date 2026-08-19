@@ -1,3 +1,4 @@
+#include <unpd/common.h>
 #include <unpd/stealth/unloaded_cleaner.hpp>
 
 namespace unpd::stealth {

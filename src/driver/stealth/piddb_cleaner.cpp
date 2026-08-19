@@ -1,3 +1,4 @@
+#include <unpd/common.h>
 #include <unpd/stealth/piddb_cleaner.hpp>
 
 namespace unpd::stealth {

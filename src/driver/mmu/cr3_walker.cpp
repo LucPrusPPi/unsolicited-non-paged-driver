@@ -1,3 +1,4 @@
+#include <unpd/common.h>
 #include <unpd/mmu/cr3_walker.hpp>
 
 namespace unpd::mmu {

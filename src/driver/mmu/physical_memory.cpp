@@ -1,3 +1,4 @@
+#include <unpd/common.h>
 #include <unpd/mmu/physical_memory.hpp>
 
 namespace unpd::mmu {
