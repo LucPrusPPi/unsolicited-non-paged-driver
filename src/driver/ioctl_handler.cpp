@@ -471,7 +471,7 @@ NTSTATUS UnpdHandleWriteProcessCr3(
     }
 
     __try {
-        ProbeForRead(reinterpret_cast<const void*>(inBuf->UserBuffer), static_cast<SIZE_T>(inBuf->Size), 1);
+        ProbeForRead(reinterpret_cast<PVOID>(inBuf->UserBuffer), static_cast<SIZE_T>(inBuf->Size), 1);
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         *information = 0;
         return GetExceptionCode();
