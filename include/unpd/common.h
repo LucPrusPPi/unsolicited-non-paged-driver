@@ -6,7 +6,19 @@
 #ifdef _KERNEL_MODE
 #include <ntdef.h>
 #include <ntstatus.h>
+typedef unsigned char      uint8_t;
+typedef unsigned short     uint16_t;
+typedef unsigned int       uint32_t;
+typedef unsigned __int64   uint64_t;
+typedef signed char        int8_t;
+typedef signed short       int16_t;
+typedef signed int         int32_t;
+typedef signed __int64     int64_t;
+typedef uint64_t           uintptr_t;
+typedef int64_t            intptr_t;
 #else
+#include <stdint.h>
+#include <stddef.h>
 #include <windows.h>
 #include <winioctl.h>
 #ifndef NTSTATUS
@@ -36,8 +48,6 @@ typedef const UNICODE_STRING *PCUNICODE_STRING;
 #define STATUS_NOT_SUPPORTED             ((NTSTATUS)0xC00000BBB)
 #endif
 #endif
-
-#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -69,6 +79,11 @@ extern "C" {
 #define UNPD_IOCTL_INDEX_SWAP_BUFFERS           0x808
 #define UNPD_IOCTL_INDEX_SLAB_ALLOC             0x809
 #define UNPD_IOCTL_INDEX_SLAB_FREE              0x80A
+#define UNPD_IOCTL_INDEX_READ_PROCESS_CR3       0x80B
+#define UNPD_IOCTL_INDEX_WRITE_PROCESS_CR3      0x80C
+#define UNPD_IOCTL_INDEX_QUEUE_KAPC             0x80D
+#define UNPD_IOCTL_INDEX_CLEAN_PIDDB            0x80E
+#define UNPD_IOCTL_INDEX_CLEAN_UNLOADED         0x80F
 
 // IOCTL Definitions using CTL_CODE macro
 #define IOCTL_UNPD_PING \
@@ -103,6 +118,21 @@ extern "C" {
 
 #define IOCTL_UNPD_SLAB_FREE \
     CTL_CODE(UNPD_DEVICE_TYPE, UNPD_IOCTL_INDEX_SLAB_FREE, METHOD_BUFFERED, FILE_ANY_ACCESS)
+
+#define IOCTL_UNPD_READ_PROCESS_CR3 \
+    CTL_CODE(UNPD_DEVICE_TYPE, UNPD_IOCTL_INDEX_READ_PROCESS_CR3, METHOD_BUFFERED, FILE_ANY_ACCESS)
+
+#define IOCTL_UNPD_WRITE_PROCESS_CR3 \
+    CTL_CODE(UNPD_DEVICE_TYPE, UNPD_IOCTL_INDEX_WRITE_PROCESS_CR3, METHOD_BUFFERED, FILE_ANY_ACCESS)
+
+#define IOCTL_UNPD_QUEUE_KAPC \
+    CTL_CODE(UNPD_DEVICE_TYPE, UNPD_IOCTL_INDEX_QUEUE_KAPC, METHOD_BUFFERED, FILE_ANY_ACCESS)
+
+#define IOCTL_UNPD_CLEAN_PIDDB \
+    CTL_CODE(UNPD_DEVICE_TYPE, UNPD_IOCTL_INDEX_CLEAN_PIDDB, METHOD_BUFFERED, FILE_ANY_ACCESS)
+
+#define IOCTL_UNPD_CLEAN_UNLOADED \
+    CTL_CODE(UNPD_DEVICE_TYPE, UNPD_IOCTL_INDEX_CLEAN_UNLOADED, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 // ============================================================================
 // Magic Validation Constants
@@ -234,6 +264,56 @@ typedef struct _UNPD_SLAB_RESPONSE {
     uint32_t BlockSize;
     uint32_t Reserved;
 } UNPD_SLAB_RESPONSE, *PUNPD_SLAB_RESPONSE;
+
+typedef struct _UNPD_CR3_MEMORY_REQUEST {
+    uint32_t Magic;
+    uint32_t Reserved;
+    uint64_t Cr3;
+    uint64_t VirtualAddress;
+    uint64_t UserBuffer;
+    uint64_t Size;
+} UNPD_CR3_MEMORY_REQUEST, *PUNPD_CR3_MEMORY_REQUEST;
+
+typedef struct _UNPD_CR3_MEMORY_RESPONSE {
+    uint32_t Magic;
+    uint32_t Status;
+    uint64_t BytesTransferred;
+} UNPD_CR3_MEMORY_RESPONSE, *PUNPD_CR3_MEMORY_RESPONSE;
+
+typedef struct _UNPD_APC_QUEUE_REQUEST {
+    uint32_t Magic;
+    uint32_t TargetThreadId;
+    uint64_t UserRoutine;
+    uint64_t UserContext;
+} UNPD_APC_QUEUE_REQUEST, *PUNPD_APC_QUEUE_REQUEST;
+
+typedef struct _UNPD_APC_QUEUE_RESPONSE {
+    uint32_t Magic;
+    uint32_t Status;
+} UNPD_APC_QUEUE_RESPONSE, *PUNPD_APC_QUEUE_RESPONSE;
+
+typedef struct _UNPD_STEALTH_PIDDB_REQUEST {
+    uint32_t Magic;
+    uint32_t TimeDateStamp;
+    wchar_t  DriverName[64];
+} UNPD_STEALTH_PIDDB_REQUEST, *PUNPD_STEALTH_PIDDB_REQUEST;
+
+typedef struct _UNPD_STEALTH_PIDDB_RESPONSE {
+    uint32_t Magic;
+    uint32_t Status;
+} UNPD_STEALTH_PIDDB_RESPONSE, *PUNPD_STEALTH_PIDDB_RESPONSE;
+
+typedef struct _UNPD_STEALTH_UNLOADED_REQUEST {
+    uint32_t Magic;
+    uint32_t Reserved;
+    wchar_t  DriverName[64];
+    uint64_t BigPoolAddress;
+} UNPD_STEALTH_UNLOADED_REQUEST, *PUNPD_STEALTH_UNLOADED_REQUEST;
+
+typedef struct _UNPD_STEALTH_UNLOADED_RESPONSE {
+    uint32_t Magic;
+    uint32_t Status;
+} UNPD_STEALTH_UNLOADED_RESPONSE, *PUNPD_STEALTH_UNLOADED_RESPONSE;
 
 #pragma pack(pop)
 

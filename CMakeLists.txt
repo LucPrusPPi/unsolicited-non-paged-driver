@@ -139,6 +139,8 @@ if(EXISTS "${WDK_INC_KM}")
             $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-unused-variable>
             $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-microsoft-include>
             $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-c++11-narrowing>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-unused-command-line-argument>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-deprecated-volatile>
         )
     endif()
 
@@ -202,12 +204,12 @@ if(UNPD_BUILD_TESTS)
         src/tests/test_mmu.cpp
         src/tests/test_stealth.cpp
         src/tests/test_cr3_walker.cpp
-        src/driver/mmu/physical_memory.cpp
-        src/driver/mmu/cr3_walker.cpp
-        src/driver/stealth/piddb.cpp
-        src/driver/stealth/unloaded_drivers.cpp
+        src/tests/test_virtual_mmu.cpp
+        src/tests/test_kstd.cpp
+        src/tests/test_shared_memory.cpp
+        src/tests/test_client_integration.cpp
+        src/tests/emulator/virtual_mmu.cpp
         src/driver/comm/shared_memory.cpp
-        src/driver/exec/apc.cpp
         src/driver/kernel_asm.asm
     )
 

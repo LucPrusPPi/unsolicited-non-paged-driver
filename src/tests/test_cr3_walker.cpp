@@ -1,49 +1,56 @@
 #include <gtest/gtest.h>
 #include <unpd/common.h>
-#include <unpd/mmu/physical_memory.hpp>
-#include <unpd/mmu/cr3_walker.hpp>
-#include <unpd/mmu/pte_remapper.hpp>
-#include <unpd/exec/apc.hpp>
-#include <unpd/comm/shared_memory.hpp>
+#include <unpd/mmu/paging_types.hpp>
+#include <unpd/mmu/descriptors.hpp>
+#include <unpd/kstd/expected.hpp>
+#include "emulator/virtual_mmu.hpp"
 
-TEST(MmuAdvancedTest, PhysicalMemoryValidation) {
-    char buf[16] = {};
-    SIZE_T rw = 0;
-    EXPECT_EQ(unpd::mmu::PhysicalMemory::ReadPhysicalAddress(0, buf, 16, &rw), STATUS_INVALID_PARAMETER);
-    EXPECT_EQ(unpd::mmu::PhysicalMemory::WritePhysicalAddress(0, buf, 16, &rw), STATUS_INVALID_PARAMETER);
-    EXPECT_EQ(unpd::mmu::PhysicalMemory::ReadPhysicalAddress(0x1000, buf, 16, &rw), STATUS_SUCCESS);
+using namespace unpd::test::emulator;
+
+TEST(MmuAdvancedTest, VirtualMemoryWalkEndToEnd) {
+    VirtualMmu mmu;
+    const uint64_t cr3 = mmu.CreatePml4();
+    ASSERT_NE(cr3, 0ULL);
+
+    const uint64_t testVa = 0x00007FFF80001000ULL;
+    const uint64_t testPa = mmu.AllocatePhysicalPage();
+    ASSERT_NE(testPa, 0ULL);
+
+    EXPECT_TRUE(mmu.MapPage(cr3, testVa, testPa, PageFlags::Present | PageFlags::ReadWrite));
+
+    // Write a test sequence to physical memory
+    const uint32_t magic = 0xDEADBEEF;
+    EXPECT_TRUE(mmu.WritePhysical(testPa, &magic, sizeof(magic)));
+
+    // Read back through virtual translation
+    uint32_t readMagic = 0;
+    size_t bytesRead = 0;
+    EXPECT_TRUE(mmu.ReadVirtual(cr3, testVa, &readMagic, sizeof(readMagic), &bytesRead));
+    EXPECT_EQ(bytesRead, sizeof(magic));
+    EXPECT_EQ(readMagic, magic);
 }
 
-TEST(MmuAdvancedTest, Cr3WalkerValidation) {
-    ULONG64 pa = unpd::mmu::Cr3Walker::TranslateVirtualToPhysical(0x2000, 0x7FFF12345678);
-    EXPECT_EQ(pa, 0x2000 + 0x678);
-}
+TEST(MmuAdvancedTest, VirtualPteRemapping_PermissionsChange) {
+    VirtualMmu mmu;
+    const uint64_t cr3 = mmu.CreatePml4();
+    ASSERT_NE(cr3, 0ULL);
 
-TEST(ExecAdvancedTest, KernelApcValidation) {
-    EXPECT_EQ(unpd::exec::KernelApc::QueueUserApc(nullptr, nullptr, nullptr), STATUS_INVALID_PARAMETER);
-    EXPECT_EQ(unpd::exec::KernelApc::QueueUserApc((HANDLE)1234, (PVOID)0x7FFF0000, nullptr), STATUS_SUCCESS);
-}
+    const uint64_t testVa = 0x00007FFF90000000ULL;
+    const uint64_t testPa = mmu.AllocatePhysicalPage();
+    ASSERT_NE(testPa, 0ULL);
 
-TEST(MmuAdvancedTest, PhysicalMemoryMappingRaii) {
-    unpd::mmu::PhysicalMemoryMapping<uint32_t> mapping(0x1000);
-    EXPECT_TRUE(mapping.IsValid());
-    if (mapping.IsValid()) {
-        *mapping = 0x1337BEEF;
-        EXPECT_EQ(*mapping, 0x1337BEEF);
-    }
-}
+    // Initial mapping: Read-only
+    EXPECT_TRUE(mmu.MapPage(cr3, testVa, testPa, PageFlags::Present));
 
-TEST(MmuAdvancedTest, PteRemapperValidation) {
-    EXPECT_EQ(unpd::mmu::PteRemapper::MakePageWritable(0, 0), STATUS_INVALID_PARAMETER);
-    EXPECT_EQ(unpd::mmu::PteRemapper::MakePageWritable(0x1000, 0x7FFF0000), STATUS_SUCCESS);
-    EXPECT_EQ(unpd::mmu::PteRemapper::MakePageExecutable(0, 0), STATUS_INVALID_PARAMETER);
-    EXPECT_EQ(unpd::mmu::PteRemapper::MakePageExecutable(0x1000, 0x7FFF0000), STATUS_SUCCESS);
-}
+    // Verify Write triggers #PF
+    auto writeTrans1 = mmu.Translate(cr3, testVa, true, false, false);
+    EXPECT_FALSE(writeTrans1.has_value());
 
-TEST(CommBackendTest, SharedMemValidation) {
-    EXPECT_EQ(unpd::comm::SharedMemBackend::Initialize(nullptr), STATUS_INVALID_PARAMETER);
-    char sharedBuf[8192] = {};
-    EXPECT_EQ(unpd::comm::SharedMemBackend::Initialize(sharedBuf), STATUS_SUCCESS);
-    EXPECT_EQ(unpd::comm::SharedMemBackend::PollAndDispatch(), STATUS_SUCCESS);
-}
+    // Remap / update PTE flags to ReadWrite
+    EXPECT_TRUE(mmu.SetPageFlags(cr3, testVa, PageFlags::Present | PageFlags::ReadWrite));
 
+    // Verify Write now succeeds
+    auto writeTrans2 = mmu.Translate(cr3, testVa, true, false, false);
+    EXPECT_TRUE(writeTrans2.has_value());
+    EXPECT_EQ(writeTrans2.value(), testPa);
+}

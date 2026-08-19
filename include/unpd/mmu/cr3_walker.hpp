@@ -13,6 +13,10 @@ namespace unpd::mmu {
 
 class Cr3Walker {
 public:
+    static bool IsCanonical(ULONG64 virtualAddress) noexcept {
+        const ULONG64 signBits = virtualAddress >> 47;
+        return (signBits == 0) || (signBits == 0x1FFFFULL);
+    }
     static ULONG64 TranslateVirtualToPhysical(ULONG64 cr3, ULONG64 virtualAddress);
     static NTSTATUS ReadProcessMemoryCr3(ULONG64 cr3, ULONG64 virtualAddress, PVOID buffer, SIZE_T size, PSIZE_T bytesRead);
     static NTSTATUS WriteProcessMemoryCr3(ULONG64 cr3, ULONG64 virtualAddress, const void* buffer, SIZE_T size, PSIZE_T bytesWritten);

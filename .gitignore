@@ -39,6 +39,9 @@ __pycache__/
 *.pyc
 
 # Local Tooling & Configs
+references/
 .gemini/
 .claude/
 CLAUDE.md
+AUDIT_REPORT.md
+audit_report.md

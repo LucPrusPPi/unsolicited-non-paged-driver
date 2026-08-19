@@ -20,15 +20,8 @@ NTSTATUS PhysicalMemory::ReadPhysicalAddress(ULONG64 physicalAddress, PVOID buff
 
         PhysicalMemoryMapping<uint8_t> mapping(currentPa, chunk);
         if (!mapping.IsValid()) {
-#ifndef _KERNEL_MODE
-            // Safe fallback for user-mode mock tests
-            memset(dest + totalRead, 0xAA, chunk);
-            totalRead += chunk;
-            continue;
-#else
             if (bytesRead) *bytesRead = totalRead;
             return STATUS_UNSUCCESSFUL;
-#endif
         }
 
         memcpy(dest + totalRead, mapping.Get(), chunk);
@@ -54,13 +47,8 @@ NTSTATUS PhysicalMemory::WritePhysicalAddress(ULONG64 physicalAddress, const voi
 
         PhysicalMemoryMapping<uint8_t> mapping(currentPa, chunk);
         if (!mapping.IsValid()) {
-#ifndef _KERNEL_MODE
-            totalWritten += chunk;
-            continue;
-#else
             if (bytesWritten) *bytesWritten = totalWritten;
             return STATUS_UNSUCCESSFUL;
-#endif
         }
 
         memcpy(mapping.Get(), src + totalWritten, chunk);

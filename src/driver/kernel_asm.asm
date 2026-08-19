@@ -69,9 +69,14 @@ UnpdStoreFence ENDP
 ;------------------------------------------------------------------------------
 UnpdFastSwapBarrier PROC
     mfence
+    test    rcx, rcx
+    jz      @skip_swap
+    test    rdx, rdx
+    jz      @skip_swap
     mov     rax, [rdx]
     xchg    [rcx], rax
     mov     [rdx], rax
+@skip_swap:
     mfence
     ret
 UnpdFastSwapBarrier ENDP

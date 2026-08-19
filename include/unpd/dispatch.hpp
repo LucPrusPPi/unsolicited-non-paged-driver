@@ -120,5 +120,40 @@ NTSTATUS UnpdHandleSlabFree(
     ULONG_PTR* information
 );
 
+NTSTATUS UnpdHandleReadProcessCr3(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+);
+
+NTSTATUS UnpdHandleWriteProcessCr3(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+);
+
+NTSTATUS UnpdHandleQueueApc(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+);
+
+NTSTATUS UnpdHandleCleanPiDdb(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+);
+
+NTSTATUS UnpdHandleCleanUnloaded(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+);
+
 #endif // _KERNEL_MODE
 #endif // UNPD_DISPATCH_HPP

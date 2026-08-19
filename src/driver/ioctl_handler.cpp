@@ -1,6 +1,10 @@
 #include "unpd/dispatch.hpp"
 #include "unpd/kernel_raii.hpp"
 #include "unpd/security.hpp"
+#include "unpd/mmu/cr3_walker.hpp"
+#include "unpd/exec/apc.hpp"
+#include "unpd/stealth/piddb.hpp"
+#include "unpd/stealth/unloaded_drivers.hpp"
 
 NTSTATUS UnpdHandlePing(
     PUNPD_DEVICE_EXTENSION devExt,
@@ -393,5 +397,220 @@ NTSTATUS UnpdHandleSlabFree(
     outBuf->Status = NT_SUCCESS(status) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_NOT_FOUND;
 
     *information = sizeof(UNPD_FREE_RESPONSE);
+    return status;
+}
+
+NTSTATUS UnpdHandleReadProcessCr3(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+) {
+    UNREFERENCED_PARAMETER(devExt);
+
+    ULONG inLen = irpSp->Parameters.DeviceIoControl.InputBufferLength;
+    ULONG outLen = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    auto* inBuf = static_cast<PUNPD_CR3_MEMORY_REQUEST>(irp->AssociatedIrp.SystemBuffer);
+    auto* outBuf = static_cast<PUNPD_CR3_MEMORY_RESPONSE>(irp->AssociatedIrp.SystemBuffer);
+
+    if (inLen < sizeof(UNPD_CR3_MEMORY_REQUEST) || outLen < sizeof(UNPD_CR3_MEMORY_RESPONSE)) {
+        *information = 0;
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    if (inBuf->Magic != UNPD_MAGIC_REQUEST || inBuf->Cr3 == 0 || inBuf->VirtualAddress == 0 || inBuf->UserBuffer == 0 || inBuf->Size == 0 || inBuf->Size > 16 * 1024 * 1024) {
+        *information = 0;
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    __try {
+        ProbeForWrite(reinterpret_cast<PVOID>(inBuf->UserBuffer), static_cast<SIZE_T>(inBuf->Size), 1);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        *information = 0;
+        return GetExceptionCode();
+    }
+
+    SIZE_T bytesRead = 0;
+    NTSTATUS status = unpd::mmu::Cr3Walker::ReadProcessMemoryCr3(
+        inBuf->Cr3,
+        inBuf->VirtualAddress,
+        reinterpret_cast<PVOID>(inBuf->UserBuffer),
+        static_cast<SIZE_T>(inBuf->Size),
+        &bytesRead
+    );
+
+    outBuf->Magic = UNPD_MAGIC_RESPONSE;
+    outBuf->Status = NT_SUCCESS(status) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_INVALID_PARAM;
+    outBuf->BytesTransferred = bytesRead;
+
+    *information = sizeof(UNPD_CR3_MEMORY_RESPONSE);
+    return status;
+}
+
+NTSTATUS UnpdHandleWriteProcessCr3(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+) {
+    UNREFERENCED_PARAMETER(devExt);
+
+    ULONG inLen = irpSp->Parameters.DeviceIoControl.InputBufferLength;
+    ULONG outLen = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    auto* inBuf = static_cast<PUNPD_CR3_MEMORY_REQUEST>(irp->AssociatedIrp.SystemBuffer);
+    auto* outBuf = static_cast<PUNPD_CR3_MEMORY_RESPONSE>(irp->AssociatedIrp.SystemBuffer);
+
+    if (inLen < sizeof(UNPD_CR3_MEMORY_REQUEST) || outLen < sizeof(UNPD_CR3_MEMORY_RESPONSE)) {
+        *information = 0;
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    if (inBuf->Magic != UNPD_MAGIC_REQUEST || inBuf->Cr3 == 0 || inBuf->VirtualAddress == 0 || inBuf->UserBuffer == 0 || inBuf->Size == 0 || inBuf->Size > 16 * 1024 * 1024) {
+        *information = 0;
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    __try {
+        ProbeForRead(reinterpret_cast<PVOID>(inBuf->UserBuffer), static_cast<SIZE_T>(inBuf->Size), 1);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        *information = 0;
+        return GetExceptionCode();
+    }
+
+    SIZE_T bytesWritten = 0;
+    NTSTATUS status = unpd::mmu::Cr3Walker::WriteProcessMemoryCr3(
+        inBuf->Cr3,
+        inBuf->VirtualAddress,
+        reinterpret_cast<const void*>(inBuf->UserBuffer),
+        static_cast<SIZE_T>(inBuf->Size),
+        &bytesWritten
+    );
+
+    outBuf->Magic = UNPD_MAGIC_RESPONSE;
+    outBuf->Status = NT_SUCCESS(status) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_INVALID_PARAM;
+    outBuf->BytesTransferred = bytesWritten;
+
+    *information = sizeof(UNPD_CR3_MEMORY_RESPONSE);
+    return status;
+}
+
+NTSTATUS UnpdHandleQueueApc(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+) {
+    UNREFERENCED_PARAMETER(devExt);
+
+    ULONG inLen = irpSp->Parameters.DeviceIoControl.InputBufferLength;
+    ULONG outLen = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    auto* inBuf = static_cast<PUNPD_APC_QUEUE_REQUEST>(irp->AssociatedIrp.SystemBuffer);
+    auto* outBuf = static_cast<PUNPD_APC_QUEUE_RESPONSE>(irp->AssociatedIrp.SystemBuffer);
+
+    if (inLen < sizeof(UNPD_APC_QUEUE_REQUEST) || outLen < sizeof(UNPD_APC_QUEUE_RESPONSE)) {
+        *information = 0;
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    if (inBuf->Magic != UNPD_MAGIC_REQUEST || inBuf->TargetThreadId == 0 || inBuf->UserRoutine == 0) {
+        *information = 0;
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    NTSTATUS status = unpd::exec::KernelApc::QueueUserApc(
+        reinterpret_cast<HANDLE>(static_cast<uintptr_t>(inBuf->TargetThreadId)),
+        reinterpret_cast<PVOID>(inBuf->UserRoutine),
+        reinterpret_cast<PVOID>(inBuf->UserContext)
+    );
+
+    outBuf->Magic = UNPD_MAGIC_RESPONSE;
+    outBuf->Status = NT_SUCCESS(status) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_INVALID_PARAM;
+
+    *information = sizeof(UNPD_APC_QUEUE_RESPONSE);
+    return status;
+}
+
+NTSTATUS UnpdHandleCleanPiDdb(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+) {
+    UNREFERENCED_PARAMETER(devExt);
+
+    ULONG inLen = irpSp->Parameters.DeviceIoControl.InputBufferLength;
+    ULONG outLen = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    auto* inBuf = static_cast<PUNPD_STEALTH_PIDDB_REQUEST>(irp->AssociatedIrp.SystemBuffer);
+    auto* outBuf = static_cast<PUNPD_STEALTH_PIDDB_RESPONSE>(irp->AssociatedIrp.SystemBuffer);
+
+    if (inLen < sizeof(UNPD_STEALTH_PIDDB_REQUEST) || outLen < sizeof(UNPD_STEALTH_PIDDB_RESPONSE)) {
+        *information = 0;
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    if (inBuf->Magic != UNPD_MAGIC_REQUEST || inBuf->DriverName[0] == L'\0') {
+        *information = 0;
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    inBuf->DriverName[63] = L'\0';
+    UNICODE_STRING driverName{};
+    RtlInitUnicodeString(&driverName, inBuf->DriverName);
+
+    NTSTATUS status = unpd::stealth::PiDdbCleaner::CleanDriverTrace(&driverName, inBuf->TimeDateStamp);
+
+    outBuf->Magic = UNPD_MAGIC_RESPONSE;
+    outBuf->Status = NT_SUCCESS(status) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_INVALID_PARAM;
+
+    *information = sizeof(UNPD_STEALTH_PIDDB_RESPONSE);
+    return status;
+}
+
+NTSTATUS UnpdHandleCleanUnloaded(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+) {
+    UNREFERENCED_PARAMETER(devExt);
+
+    ULONG inLen = irpSp->Parameters.DeviceIoControl.InputBufferLength;
+    ULONG outLen = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    auto* inBuf = static_cast<PUNPD_STEALTH_UNLOADED_REQUEST>(irp->AssociatedIrp.SystemBuffer);
+    auto* outBuf = static_cast<PUNPD_STEALTH_UNLOADED_RESPONSE>(irp->AssociatedIrp.SystemBuffer);
+
+    if (inLen < sizeof(UNPD_STEALTH_UNLOADED_REQUEST) || outLen < sizeof(UNPD_STEALTH_UNLOADED_RESPONSE)) {
+        *information = 0;
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    if (inBuf->Magic != UNPD_MAGIC_REQUEST) {
+        *information = 0;
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    NTSTATUS status = STATUS_SUCCESS;
+
+    if (inBuf->DriverName[0] != L'\0') {
+        inBuf->DriverName[63] = L'\0';
+        UNICODE_STRING driverName{};
+        RtlInitUnicodeString(&driverName, inBuf->DriverName);
+        NTSTATUS subStatus = unpd::stealth::UnloadedCleaner::CleanUnloadedDrivers(&driverName);
+        if (!NT_SUCCESS(subStatus)) {
+            status = subStatus;
+        }
+    }
+
+    if (inBuf->BigPoolAddress != 0) {
+        NTSTATUS subStatus = unpd::stealth::UnloadedCleaner::CleanBigPoolTable(reinterpret_cast<PVOID>(inBuf->BigPoolAddress));
+        if (!NT_SUCCESS(subStatus)) {
+            status = subStatus;
+        }
+    }
+
+    outBuf->Magic = UNPD_MAGIC_RESPONSE;
+    outBuf->Status = NT_SUCCESS(status) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_INVALID_PARAM;
+
+    *information = sizeof(UNPD_STEALTH_UNLOADED_RESPONSE);
     return status;
 }

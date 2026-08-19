@@ -38,7 +38,15 @@ extern "C" {
 }
 
 static VOID KernelApcCleanup(PKAPC apc, PKNORMAL_ROUTINE*, PVOID*, PVOID*, PVOID*) {
-    ExFreePoolWithTag(apc, UNPD_POOL_TAG);
+    if (apc) {
+        ExFreePoolWithTag(apc, UNPD_POOL_TAG);
+    }
+}
+
+static VOID KernelApcRundown(PKAPC apc) {
+    if (apc) {
+        ExFreePoolWithTag(apc, UNPD_POOL_TAG);
+    }
 }
 #endif
 
@@ -51,10 +59,6 @@ NTSTATUS KernelApc::QueueUserApc(HANDLE targetThreadId, PVOID userRoutine, PVOID
         return STATUS_INVALID_PARAMETER;
     }
 
-#ifndef _KERNEL_MODE
-    (void)userContext;
-    return STATUS_SUCCESS;
-#else
     PETHREAD thread = nullptr;
     NTSTATUS status = PsLookupThreadByThreadId(targetThreadId, &thread);
     if (status != STATUS_SUCCESS || !thread) {
@@ -72,7 +76,7 @@ NTSTATUS KernelApc::QueueUserApc(HANDLE targetThreadId, PVOID userRoutine, PVOID
         reinterpret_cast<PKTHREAD>(thread),
         OriginalApcEnvironment,
         KernelApcCleanup,
-        nullptr,
+        KernelApcRundown,
         reinterpret_cast<PKNORMAL_ROUTINE>(userRoutine),
         UserMode,
         userContext
@@ -86,7 +90,6 @@ NTSTATUS KernelApc::QueueUserApc(HANDLE targetThreadId, PVOID userRoutine, PVOID
 
     ObDereferenceObject(thread);
     return STATUS_SUCCESS;
-#endif
 }
 
 #endif // UNPD_FEATURE_KERNEL_APC_INJECTION
