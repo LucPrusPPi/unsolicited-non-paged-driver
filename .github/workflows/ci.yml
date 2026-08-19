@@ -2,10 +2,10 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, rework/production-kernel-v2 ]
     tags: [ 'v*' ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, rework/production-kernel-v2 ]
 
 jobs:
   build-and-test:
