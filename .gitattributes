@@ -1,10 +1,28 @@
-# GitHub Linguist Language Attributes
+# ============================================================================
+# GitHub Linguist Language Configuration
+# ============================================================================
+
+# Primary Source & Header Languages
 *.cpp linguist-language=C++
 *.hpp linguist-language=C++
-*.h linguist-language=C
+*.h linguist-language=C++
 *.asm linguist-language=Assembly
+
+# Automation & Scripting Languages
 *.py linguist-language=Python
 *.ps1 linguist-language=PowerShell
+*.sh linguist-language=Shell
+*.lua linguist-language=Lua
+
+# Build System
 *.cmake linguist-language=CMake
 CMakeLists.txt linguist-language=CMake
-vcpkg.json linguist-language=JSON
+
+# Metadata, Package Manifests & Documentation (Exclude from code statistics)
+vcpkg.json linguist-vendored=true
+CMakePresets.json linguist-vendored=true
+ports/** linguist-vendored=true
+cmake/** linguist-vendored=true
+docs/** linguist-documentation=true
+*.md linguist-documentation=true
+*.rc linguist-detectable=false
