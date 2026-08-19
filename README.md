@@ -231,10 +231,14 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 │   │   ├── fuzz_runner.py      # Boundary and randomized kernel IOCTL fuzzer
 │   │   ├── init_template.py    # 1-click template customizer and project renamer
 │   │   └── verify_pe.py        # PE Authenticode, CFG, ASLR, and DEP inspector
-│   └── lua/                    # Lua automation and testing engine
-│       ├── config_validator.lua# Lua template schema and parameter validator
-│       ├── driver_test.lua     # Lua test and IOCTL protocol automation engine
-│       └── fuzz_scenario.lua   # Lua fuzz scenario generator and mutation engine
+│   └── lua/                    # Lua automation, simulation & testing engine
+│       ├── benchmark_suite.lua # Latency percentile profiler & telemetry
+│       ├── config_validator.lua# Template schema & parameter validator
+│       ├── driver_test.lua     # IOCTL protocol automation engine
+│       ├── fuzz_scenario.lua   # Mutation generator & fuzz scenarios
+│       ├── mmu_engine.lua      # 4-level x86-64 MMU page table simulator
+│       ├── protocol_codec.lua  # Binary IOCTL packet codec & dissector
+│       └── stateful_fuzzer.lua # Stateful kernel workflow sequence fuzzer
 ├── build.ps1                   # Dual-compiler (MSVC / Clang) build script (PowerShell)
 ├── build.sh                    # Dual-compiler build runner (POSIX Shell / Git Bash)
 ├── CMakeLists.txt              # CMake build configuration
