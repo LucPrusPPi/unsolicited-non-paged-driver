@@ -3,56 +3,87 @@
 
 #ifdef _KERNEL_MODE
 
+// ============================================================================
+// Global Kernel Operator New / Delete Implementations (Non-Aligned & Aligned)
+// ============================================================================
+
+void* __cdecl operator new(size_t size) {
+    return ExAllocatePool2(POOL_FLAG_NON_PAGED, size, 'WENK');
+}
+
+void* __cdecl operator new[](size_t size) {
+    return ExAllocatePool2(POOL_FLAG_NON_PAGED, size, 'WENK');
+}
+
+void __cdecl operator delete(void* ptr) noexcept {
+    if (ptr) ExFreePoolWithTag(ptr, 'WENK');
+}
+
+void __cdecl operator delete[](void* ptr) noexcept {
+    if (ptr) ExFreePoolWithTag(ptr, 'WENK');
+}
+
+void __cdecl operator delete(void* ptr, size_t) noexcept {
+    if (ptr) ExFreePoolWithTag(ptr, 'WENK');
+}
+
+void __cdecl operator delete[](void* ptr, size_t) noexcept {
+    if (ptr) ExFreePoolWithTag(ptr, 'WENK');
+}
+
+namespace std {
+    enum class align_val_t : size_t {};
+}
+
+void* __cdecl operator new(size_t size, std::align_val_t) {
+    return ExAllocatePool2(POOL_FLAG_NON_PAGED, size, 'WENK');
+}
+
+void* __cdecl operator new[](size_t size, std::align_val_t) {
+    return ExAllocatePool2(POOL_FLAG_NON_PAGED, size, 'WENK');
+}
+
+void __cdecl operator delete(void* ptr, std::align_val_t) noexcept {
+    if (ptr) ExFreePoolWithTag(ptr, 'WENK');
+}
+
+void __cdecl operator delete[](void* ptr, std::align_val_t) noexcept {
+    if (ptr) ExFreePoolWithTag(ptr, 'WENK');
+}
+
+void __cdecl operator delete(void* ptr, size_t, std::align_val_t) noexcept {
+    if (ptr) ExFreePoolWithTag(ptr, 'WENK');
+}
+
+void __cdecl operator delete[](void* ptr, size_t, std::align_val_t) noexcept {
+    if (ptr) ExFreePoolWithTag(ptr, 'WENK');
+}
+
 namespace unpd::memory {
 
 static constexpr ULONG SLAB_SIZES[4] = { 64, 256, 1024, 4096 };
 static constexpr ULONG SLAB_TAGS[4]  = { '1LSU', '2LSU', '3LSU', '4LSU' };
 
-UniversalMemoryManager::UniversalMemoryManager() noexcept
+// ============================================================================
+// MdlMemoryEngine Implementation
+// ============================================================================
+
+MdlMemoryEngine::MdlMemoryEngine() noexcept
     : m_initialized(false), m_nextSessionId(1) {
     KeInitializeSpinLock(&m_lock);
     RtlZeroMemory(m_sessions, sizeof(m_sessions));
 }
 
-UniversalMemoryManager::~UniversalMemoryManager() noexcept {
+MdlMemoryEngine::~MdlMemoryEngine() noexcept {
     Shutdown();
 }
 
-/**
- * @brief Initializes lookaside lists for fixed-size fast slab allocation.
- *
- * @details
- * - API: ExInitializeNPagedLookasideList
- * - IRQL Requirement: <= DISPATCH_LEVEL
- * - Memory Safety: Allocates NonPagedPoolNx blocks with unique pool tags per class
- */
-NTSTATUS UniversalMemoryManager::Initialize() noexcept {
-    if (m_initialized) return STATUS_SUCCESS;
-
-    for (size_t i = 0; i < SLAB_CLASSES; ++i) {
-        ExInitializeNPagedLookasideList(
-            &m_slabLookaside[i],
-            NULL, // Default allocate function
-            NULL, // Default free function
-            POOL_FLAG_NON_PAGED,
-            SLAB_SIZES[i],
-            SLAB_TAGS[i],
-            0 // System-managed depth
-        );
-    }
-
+NTSTATUS MdlMemoryEngine::Initialize() noexcept {
     m_initialized = true;
     return STATUS_SUCCESS;
 }
 
-/**
- * @brief Releases all active shared memory sessions and lookaside lists.
- *
- * @details
- * - API: ExDeleteNPagedLookasideList, MmUnmapLockedPages, MmFreePagesFromMdl, IoFreeMdl
- * - IRQL Requirement: PASSIVE_LEVEL (required for MmUnmapLockedPages)
- */
-void UniversalMemoryManager::Shutdown() noexcept {
+void MdlMemoryEngine::Shutdown() noexcept {
     if (!m_initialized) return;
 
     for (size_t i = 0; i < MAX_SESSIONS; ++i) {
@@ -70,22 +101,10 @@ void UniversalMemoryManager::Shutdown() noexcept {
         }
     }
 
-    for (size_t i = 0; i < SLAB_CLASSES; ++i) {
-        ExDeleteNPagedLookasideList(&m_slabLookaside[i]);
-    }
-
     m_initialized = false;
 }
 
-/**
- * @brief Allocates physical RAM pages and maps them to user mode without kernel copying.
- *
- * @details
- * - APIs: MmAllocatePagesForMdlEx, MmMapLockedPagesSpecifyCache
- * - IRQL: PASSIVE_LEVEL
- * - W^X Security: Uses MdlMappingNoExecute
- */
-kstd::expected<SharedSessionDescriptor> UniversalMemoryManager::AllocateMdlSharedSession(ULONG pageCount) noexcept {
+kstd::expected<SharedSessionDescriptor> MdlMemoryEngine::AllocateSharedSession(ULONG pageCount) noexcept {
     if (pageCount == 0 || pageCount > 256) {
         return kstd::expected<SharedSessionDescriptor>::error(STATUS_INVALID_PARAMETER);
     }
@@ -96,7 +115,6 @@ kstd::expected<SharedSessionDescriptor> UniversalMemoryManager::AllocateMdlShare
     PHYSICAL_ADDRESS skipBytes{};
     highAddr.QuadPart = MAXULONG64;
 
-    // Allocate physical memory pages
     PMDL mdl = MmAllocatePagesForMdlEx(
         lowAddr,
         highAddr,
@@ -169,7 +187,7 @@ kstd::expected<SharedSessionDescriptor> UniversalMemoryManager::AllocateMdlShare
     return desc;
 }
 
-NTSTATUS UniversalMemoryManager::FreeMdlSharedSession(uint64_t sessionId) noexcept {
+NTSTATUS MdlMemoryEngine::FreeSharedSession(uint64_t sessionId) noexcept {
     if (sessionId == 0) return STATUS_INVALID_PARAMETER;
 
     KIRQL oldIrql;
@@ -203,7 +221,7 @@ NTSTATUS UniversalMemoryManager::FreeMdlSharedSession(uint64_t sessionId) noexce
     return STATUS_SUCCESS;
 }
 
-NTSTATUS UniversalMemoryManager::SwapBuffers(
+NTSTATUS MdlMemoryEngine::SwapBuffers(
     uint64_t sessionId,
     uint32_t& outActive,
     uint32_t& outStandby,
@@ -234,27 +252,47 @@ NTSTATUS UniversalMemoryManager::SwapBuffers(
     return STATUS_NOT_FOUND;
 }
 
-kstd::expected<uint64_t> UniversalMemoryManager::AllocatePoolBlock(SIZE_T size, ULONG tag) noexcept {
-    if (size == 0 || size > 1024ULL * 1024 * 1024) {
-        return kstd::expected<uint64_t>::error(STATUS_INVALID_PARAMETER);
-    }
+// ============================================================================
+// SlabMemoryEngine Implementation
+// ============================================================================
 
-    PVOID block = ExAllocatePool2(POOL_FLAG_NON_PAGED, size, tag);
-    if (!block) {
-        return kstd::expected<uint64_t>::error(STATUS_INSUFFICIENT_RESOURCES);
-    }
+SlabMemoryEngine::SlabMemoryEngine() noexcept
+    : m_initialized(false) {}
 
-    return reinterpret_cast<uint64_t>(block);
+SlabMemoryEngine::~SlabMemoryEngine() noexcept {
+    Shutdown();
 }
 
-NTSTATUS UniversalMemoryManager::FreePoolBlock(uint64_t handle) noexcept {
-    if (handle == 0) return STATUS_INVALID_PARAMETER;
-    PVOID block = reinterpret_cast<PVOID>(handle);
-    ExFreePoolWithTag(block, UNPD_POOL_TAG);
+NTSTATUS SlabMemoryEngine::Initialize() noexcept {
+    if (m_initialized) return STATUS_SUCCESS;
+
+    for (size_t i = 0; i < SLAB_CLASSES; ++i) {
+        ExInitializeNPagedLookasideList(
+            &m_slabLookaside[i],
+            NULL,
+            NULL,
+            POOL_FLAG_NON_PAGED,
+            SLAB_SIZES[i],
+            SLAB_TAGS[i],
+            0
+        );
+    }
+
+    m_initialized = true;
     return STATUS_SUCCESS;
 }
 
-kstd::expected<uint64_t> UniversalMemoryManager::AllocateSlab(uint32_t blockClass, uint32_t& outBlockSize) noexcept {
+void SlabMemoryEngine::Shutdown() noexcept {
+    if (!m_initialized) return;
+
+    for (size_t i = 0; i < SLAB_CLASSES; ++i) {
+        ExDeleteNPagedLookasideList(&m_slabLookaside[i]);
+    }
+
+    m_initialized = false;
+}
+
+kstd::expected<uint64_t> SlabMemoryEngine::AllocateSlab(uint32_t blockClass, uint32_t& outBlockSize) noexcept {
     if (blockClass >= SLAB_CLASSES) {
         return kstd::expected<uint64_t>::error(STATUS_INVALID_PARAMETER);
     }
@@ -268,7 +306,7 @@ kstd::expected<uint64_t> UniversalMemoryManager::AllocateSlab(uint32_t blockClas
     return reinterpret_cast<uint64_t>(ptr);
 }
 
-NTSTATUS UniversalMemoryManager::FreeSlab(uint64_t slabHandle, uint32_t blockSize) noexcept {
+NTSTATUS SlabMemoryEngine::FreeSlab(uint64_t slabHandle, uint32_t blockSize) noexcept {
     if (slabHandle == 0) return STATUS_INVALID_PARAMETER;
 
     for (size_t i = 0; i < SLAB_CLASSES; ++i) {
@@ -281,7 +319,51 @@ NTSTATUS UniversalMemoryManager::FreeSlab(uint64_t slabHandle, uint32_t blockSiz
     return STATUS_INVALID_PARAMETER;
 }
 
-NTSTATUS UniversalMemoryManager::ValidateUserBuffer(PVOID userPtr, SIZE_T length, bool writeAccess) noexcept {
+// ============================================================================
+// PoolMemoryEngine Implementation
+// ============================================================================
+
+PoolMemoryEngine::PoolMemoryEngine() noexcept
+    : m_initialized(false) {}
+
+PoolMemoryEngine::~PoolMemoryEngine() noexcept {
+    Shutdown();
+}
+
+NTSTATUS PoolMemoryEngine::Initialize() noexcept {
+    m_initialized = true;
+    return STATUS_SUCCESS;
+}
+
+void PoolMemoryEngine::Shutdown() noexcept {
+    m_initialized = false;
+}
+
+kstd::expected<uint64_t> PoolMemoryEngine::AllocatePoolBlock(SIZE_T size, ULONG tag) noexcept {
+    if (size == 0 || size > 1024ULL * 1024 * 1024) {
+        return kstd::expected<uint64_t>::error(STATUS_INVALID_PARAMETER);
+    }
+
+    PVOID block = ExAllocatePool2(POOL_FLAG_NON_PAGED, size, tag);
+    if (!block) {
+        return kstd::expected<uint64_t>::error(STATUS_INSUFFICIENT_RESOURCES);
+    }
+
+    return reinterpret_cast<uint64_t>(block);
+}
+
+NTSTATUS PoolMemoryEngine::FreePoolBlock(uint64_t handle) noexcept {
+    if (handle == 0) return STATUS_INVALID_PARAMETER;
+    PVOID block = reinterpret_cast<PVOID>(handle);
+    ExFreePoolWithTag(block, UNPD_POOL_TAG);
+    return STATUS_SUCCESS;
+}
+
+// ============================================================================
+// DirectNeitherEngine Implementation
+// ============================================================================
+
+NTSTATUS DirectNeitherEngine::ValidateUserBuffer(PVOID userPtr, SIZE_T length, bool writeAccess) noexcept {
     if (!userPtr || length == 0) return STATUS_INVALID_PARAMETER;
 
     __try {
@@ -294,6 +376,43 @@ NTSTATUS UniversalMemoryManager::ValidateUserBuffer(PVOID userPtr, SIZE_T length
         return GetExceptionCode();
     }
     return STATUS_SUCCESS;
+}
+
+// ============================================================================
+// UniversalMemoryManager Implementation
+// ============================================================================
+
+UniversalMemoryManager::UniversalMemoryManager() noexcept
+    : m_initialized(false) {}
+
+UniversalMemoryManager::~UniversalMemoryManager() noexcept {
+    Shutdown();
+}
+
+NTSTATUS UniversalMemoryManager::Initialize() noexcept {
+    if (m_initialized) return STATUS_SUCCESS;
+
+    NTSTATUS status = m_mdlEngine.Initialize();
+    if (!NT_SUCCESS(status)) return status;
+
+    status = m_slabEngine.Initialize();
+    if (!NT_SUCCESS(status)) return status;
+
+    status = m_poolEngine.Initialize();
+    if (!NT_SUCCESS(status)) return status;
+
+    m_initialized = true;
+    return STATUS_SUCCESS;
+}
+
+void UniversalMemoryManager::Shutdown() noexcept {
+    if (!m_initialized) return;
+
+    m_mdlEngine.Shutdown();
+    m_slabEngine.Shutdown();
+    m_poolEngine.Shutdown();
+
+    m_initialized = false;
 }
 
 } // namespace unpd::memory

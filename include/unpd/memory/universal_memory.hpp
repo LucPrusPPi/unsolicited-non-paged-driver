@@ -40,11 +40,128 @@ struct SharedSessionDescriptor {
 };
 
 /**
- * @brief Universal Kernel Memory Management Subsystem.
+ * @brief Abstract Polymorphic Interface for Kernel Memory Engines.
+ */
+class IMemoryEngine {
+public:
+    virtual ~IMemoryEngine() = default;
+
+    /**
+     * @brief Initializes underlying pool, lists, or hardware descriptors.
+     * @irql_requirement <= DISPATCH_LEVEL
+     */
+    virtual NTSTATUS Initialize() noexcept = 0;
+
+    /**
+     * @brief Cleans up and releases all resources managed by the engine.
+     * @irql_requirement PASSIVE_LEVEL
+     */
+    virtual void Shutdown() noexcept = 0;
+
+    /**
+     * @brief Returns the memory operational mode identifier.
+     */
+    [[nodiscard]] virtual MemoryMode GetMode() const noexcept = 0;
+
+    /**
+     * @brief Returns human-readable engine name.
+     */
+    [[nodiscard]] virtual const char* GetName() const noexcept = 0;
+};
+
+/**
+ * @brief Physical Memory MDL Zero-Copy Engine.
  *
  * @details
- * Combines zero-copy physical MDL mapping, section objects, tracked non-paged pool,
- * and lockless slab caches into a modular, unified architecture.
+ * Handles allocation of physical RAM frames via MmAllocatePagesForMdlEx,
+ * mapping into calling user-mode address space via MmMapLockedPagesSpecifyCache
+ * with MdlMappingNoExecute, and lock-free double-buffering page swaps.
+ */
+class MdlMemoryEngine final : public IMemoryEngine {
+public:
+    MdlMemoryEngine() noexcept;
+    ~MdlMemoryEngine() noexcept override;
+
+    NTSTATUS Initialize() noexcept override;
+    void Shutdown() noexcept override;
+    [[nodiscard]] MemoryMode GetMode() const noexcept override { return MemoryMode::PhysicalMdlZeroCopy; }
+    [[nodiscard]] const char* GetName() const noexcept override { return "MdlZeroCopyEngine"; }
+
+    kstd::expected<SharedSessionDescriptor> AllocateSharedSession(ULONG pageCount) noexcept;
+    NTSTATUS FreeSharedSession(uint64_t sessionId) noexcept;
+    NTSTATUS SwapBuffers(uint64_t sessionId, uint32_t& outActive, uint32_t& outStandby, uint64_t& outSwaps) noexcept;
+
+private:
+    static constexpr size_t MAX_SESSIONS = 32;
+    KSPIN_LOCK m_lock;
+    SharedSessionDescriptor m_sessions[MAX_SESSIONS];
+    bool m_initialized;
+    uint64_t m_nextSessionId;
+};
+
+/**
+ * @brief High-Speed Lookaside Slab Cache Engine (64B, 256B, 1024B, 4096B).
+ */
+class SlabMemoryEngine final : public IMemoryEngine {
+public:
+    SlabMemoryEngine() noexcept;
+    ~SlabMemoryEngine() noexcept override;
+
+    NTSTATUS Initialize() noexcept override;
+    void Shutdown() noexcept override;
+    [[nodiscard]] MemoryMode GetMode() const noexcept override { return MemoryMode::SlabCachePool; }
+    [[nodiscard]] const char* GetName() const noexcept override { return "SlabCacheEngine"; }
+
+    kstd::expected<uint64_t> AllocateSlab(uint32_t blockClass, uint32_t& outBlockSize) noexcept;
+    NTSTATUS FreeSlab(uint64_t slabHandle, uint32_t blockSize) noexcept;
+
+private:
+    static constexpr size_t SLAB_CLASSES = 4;
+    NPAGED_LOOKASIDE_LIST m_slabLookaside[SLAB_CLASSES];
+    bool m_initialized;
+};
+
+/**
+ * @brief Tracked Non-Paged Pool Memory Engine.
+ */
+class PoolMemoryEngine final : public IMemoryEngine {
+public:
+    PoolMemoryEngine() noexcept;
+    ~PoolMemoryEngine() noexcept override;
+
+    NTSTATUS Initialize() noexcept override;
+    void Shutdown() noexcept override;
+    [[nodiscard]] MemoryMode GetMode() const noexcept override { return MemoryMode::SystemPoolNonPaged; }
+    [[nodiscard]] const char* GetName() const noexcept override { return "NonPagedPoolEngine"; }
+
+    kstd::expected<uint64_t> AllocatePoolBlock(SIZE_T size, ULONG tag = UNPD_POOL_TAG) noexcept;
+    NTSTATUS FreePoolBlock(uint64_t handle) noexcept;
+
+private:
+    bool m_initialized;
+};
+
+/**
+ * @brief Direct & Probed User Buffer Memory Engine.
+ */
+class DirectNeitherEngine final : public IMemoryEngine {
+public:
+    DirectNeitherEngine() noexcept = default;
+    ~DirectNeitherEngine() noexcept override = default;
+
+    NTSTATUS Initialize() noexcept override { return STATUS_SUCCESS; }
+    void Shutdown() noexcept override {}
+    [[nodiscard]] MemoryMode GetMode() const noexcept override { return MemoryMode::DirectNeitherBuffer; }
+    [[nodiscard]] const char* GetName() const noexcept override { return "DirectNeitherEngine"; }
+
+    static NTSTATUS ValidateUserBuffer(PVOID userPtr, SIZE_T length, bool writeAccess) noexcept;
+};
+
+/**
+ * @brief Universal Kernel Memory Management Facade.
+ *
+ * @details
+ * Coordinates polymorphic engine instances and provides unified IOCTL dispatch interfaces.
  */
 class UniversalMemoryManager {
 public:
@@ -54,75 +171,52 @@ public:
     UniversalMemoryManager(const UniversalMemoryManager&) = delete;
     UniversalMemoryManager& operator=(const UniversalMemoryManager&) = delete;
 
-    /**
-     * @brief Initializes the universal memory manager and lookaside lists.
-     * @irql_requirement PASSIVE_LEVEL
-     */
     NTSTATUS Initialize() noexcept;
-
-    /**
-     * @brief Shuts down the memory manager and cleans up all active sessions and slabs.
-     * @irql_requirement PASSIVE_LEVEL
-     */
     void Shutdown() noexcept;
 
-    /**
-     * @brief Allocates and maps zero-copy physical MDL pages into user space.
-     * @irql_requirement PASSIVE_LEVEL
-     */
-    kstd::expected<SharedSessionDescriptor> AllocateMdlSharedSession(ULONG pageCount) noexcept;
+    // MDL Zero-Copy Operations
+    kstd::expected<SharedSessionDescriptor> AllocateMdlSharedSession(ULONG pageCount) noexcept {
+        return m_mdlEngine.AllocateSharedSession(pageCount);
+    }
+    NTSTATUS FreeMdlSharedSession(uint64_t sessionId) noexcept {
+        return m_mdlEngine.FreeSharedSession(sessionId);
+    }
+    NTSTATUS SwapBuffers(uint64_t sessionId, uint32_t& outActive, uint32_t& outStandby, uint64_t& outSwaps) noexcept {
+        return m_mdlEngine.SwapBuffers(sessionId, outActive, outStandby, outSwaps);
+    }
 
-    /**
-     * @brief Unmaps and releases an active MDL shared memory session.
-     * @irql_requirement PASSIVE_LEVEL
-     */
-    NTSTATUS FreeMdlSharedSession(uint64_t sessionId) noexcept;
+    // Non-Paged Pool Operations
+    kstd::expected<uint64_t> AllocatePoolBlock(SIZE_T size, ULONG tag = UNPD_POOL_TAG) noexcept {
+        return m_poolEngine.AllocatePoolBlock(size, tag);
+    }
+    NTSTATUS FreePoolBlock(uint64_t handle) noexcept {
+        return m_poolEngine.FreePoolBlock(handle);
+    }
 
-    /**
-     * @brief Performs an atomic lock-free buffer swap for a shared memory session.
-     * @irql_requirement <= DISPATCH_LEVEL
-     */
-    NTSTATUS SwapBuffers(uint64_t sessionId, uint32_t& outActive, uint32_t& outStandby, uint64_t& outSwaps) noexcept;
+    // Slab Cache Operations
+    kstd::expected<uint64_t> AllocateSlab(uint32_t blockClass, uint32_t& outBlockSize) noexcept {
+        return m_slabEngine.AllocateSlab(blockClass, outBlockSize);
+    }
+    NTSTATUS FreeSlab(uint64_t slabHandle, uint32_t blockSize) noexcept {
+        return m_slabEngine.FreeSlab(slabHandle, blockSize);
+    }
 
-    /**
-     * @brief Allocates from the tagged NonPagedPoolNx pool with handle tracking.
-     * @irql_requirement <= DISPATCH_LEVEL
-     */
-    kstd::expected<uint64_t> AllocatePoolBlock(SIZE_T size, ULONG tag = UNPD_POOL_TAG) noexcept;
+    // User Buffer Validation
+    static NTSTATUS ValidateUserBuffer(PVOID userPtr, SIZE_T length, bool writeAccess) noexcept {
+        return DirectNeitherEngine::ValidateUserBuffer(userPtr, length, writeAccess);
+    }
 
-    /**
-     * @brief Frees a tracked NonPagedPoolNx pool allocation by handle.
-     * @irql_requirement <= DISPATCH_LEVEL
-     */
-    NTSTATUS FreePoolBlock(uint64_t handle) noexcept;
-
-    /**
-     * @brief Allocates a block from the fixed-size slab cache (64B, 256B, 1KB, 4KB).
-     * @irql_requirement <= DISPATCH_LEVEL
-     */
-    kstd::expected<uint64_t> AllocateSlab(uint32_t blockClass, uint32_t& outBlockSize) noexcept;
-
-    /**
-     * @brief Returns a slab block to the appropriate lookaside free-list.
-     * @irql_requirement <= DISPATCH_LEVEL
-     */
-    NTSTATUS FreeSlab(uint64_t slabHandle, uint32_t blockSize) noexcept;
-
-    /**
-     * @brief Probes and verifies user buffer alignment and readability inside SEH.
-     * @irql_requirement PASSIVE_LEVEL
-     */
-    static NTSTATUS ValidateUserBuffer(PVOID userPtr, SIZE_T length, bool writeAccess) noexcept;
+    // Polymorphic Engine Accessors
+    [[nodiscard]] MdlMemoryEngine& GetMdlEngine() noexcept { return m_mdlEngine; }
+    [[nodiscard]] SlabMemoryEngine& GetSlabEngine() noexcept { return m_slabEngine; }
+    [[nodiscard]] PoolMemoryEngine& GetPoolEngine() noexcept { return m_poolEngine; }
 
 private:
-    static constexpr size_t MAX_SESSIONS = 32;
-    static constexpr size_t SLAB_CLASSES = 4;
-
-    KSPIN_LOCK m_lock;
-    SharedSessionDescriptor m_sessions[MAX_SESSIONS];
-    NPAGED_LOOKASIDE_LIST m_slabLookaside[SLAB_CLASSES];
+    MdlMemoryEngine m_mdlEngine;
+    SlabMemoryEngine m_slabEngine;
+    PoolMemoryEngine m_poolEngine;
+    DirectNeitherEngine m_directEngine;
     bool m_initialized;
-    uint64_t m_nextSessionId;
 };
 
 } // namespace unpd::memory

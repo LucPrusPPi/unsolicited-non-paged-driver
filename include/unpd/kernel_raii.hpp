@@ -7,6 +7,8 @@
 
 #include <ntddk.h>
 
+#ifdef __cplusplus
+
 namespace unpd {
 
 class SpinlockGuard {
@@ -142,5 +144,6 @@ private:
 
 } // namespace unpd
 
+#endif // __cplusplus
 #endif // _KERNEL_MODE
 #endif // UNPD_KERNEL_RAII_HPP
