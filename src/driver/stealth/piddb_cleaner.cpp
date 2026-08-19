@@ -9,7 +9,7 @@ namespace unpd::stealth {
 
 #if UNPD_FEATURE_STEALTH_CLEANERS
 
-static const uint8_t* FindPatternInternal(const uint8_t* base, SIZE_T size, const uint8_t* pattern, const char* mask) {
+[[maybe_unused]] static const uint8_t* FindPatternInternal(const uint8_t* base, SIZE_T size, const uint8_t* pattern, const char* mask) {
     if (!base || !pattern || !mask || size == 0) return nullptr;
     const SIZE_T maskLen = strlen(mask);
     if (maskLen == 0 || size < maskLen) return nullptr;
