@@ -32,5 +32,11 @@ Release/
 *.tlog
 *.lastcodeanalysissucceeded
 
+# Python Cache
 __pycache__/
 *.pyc
+
+# Local Tooling & Configs
+.gemini/
+.claude/
+CLAUDE.md
