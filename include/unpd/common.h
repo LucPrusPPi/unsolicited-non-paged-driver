@@ -12,6 +12,14 @@
 #ifndef NTSTATUS
 typedef LONG NTSTATUS;
 #endif
+#ifndef UNICODE_STRING
+typedef struct _UNICODE_STRING {
+    USHORT Length;
+    USHORT MaximumLength;
+    PWSTR  Buffer;
+} UNICODE_STRING, *PUNICODE_STRING;
+typedef const UNICODE_STRING *PCUNICODE_STRING;
+#endif
 #ifndef STATUS_SUCCESS
 #define STATUS_SUCCESS                   ((NTSTATUS)0x00000000L)
 #endif
