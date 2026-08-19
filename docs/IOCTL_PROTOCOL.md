@@ -27,6 +27,11 @@
 | `IOCTL_UNPD_SWAP_BUFFERS` | `0x808` | `METHOD_BUFFERED` | `FILE_ANY_ACCESS` | Atomic lock-free double-buffer page swap |
 | `IOCTL_UNPD_SLAB_ALLOC` | `0x809` | `METHOD_BUFFERED` | `FILE_ANY_ACCESS` | O(1) allocation from Lookaside slab pool |
 | `IOCTL_UNPD_SLAB_FREE` | `0x80A` | `METHOD_BUFFERED` | `FILE_ANY_ACCESS` | Return block to Lookaside slab free-list |
+| `IOCTL_UNPD_READ_PROCESS_CR3` | `0x80B` | `METHOD_BUFFERED` | `FILE_ANY_ACCESS` | Read virtual memory of target process by CR3 |
+| `IOCTL_UNPD_WRITE_PROCESS_CR3` | `0x80C` | `METHOD_BUFFERED` | `FILE_ANY_ACCESS` | Write virtual memory of target process by CR3 |
+| `IOCTL_UNPD_QUEUE_KAPC` | `0x80D` | `METHOD_BUFFERED` | `FILE_ANY_ACCESS` | Queue user-mode routine via Kernel APC |
+| `IOCTL_UNPD_CLEAN_PIDDB` | `0x80E` | `METHOD_BUFFERED` | `FILE_ANY_ACCESS` | Rebalance PiDDBCacheTable and unmap trace |
+| `IOCTL_UNPD_CLEAN_UNLOADED` | `0x80F` | `METHOD_BUFFERED` | `FILE_ANY_ACCESS` | Compact MmUnloadedDrivers and clean pool record |
 
 ---
 
