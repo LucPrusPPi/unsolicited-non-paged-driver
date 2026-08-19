@@ -6,6 +6,7 @@
 *.cpp linguist-language=C++
 *.hpp linguist-language=C++
 *.h linguist-language=C++
+*common.h linguist-language=C
 *.asm linguist-language=Assembly
 
 # Automation & Scripting Languages
