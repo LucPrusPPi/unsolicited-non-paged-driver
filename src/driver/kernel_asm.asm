@@ -1,8 +1,8 @@
 ;==============================================================================
 ; UNPD Kernel Assembly Subsystem (x64 MASM)
 ; Provides hardware serialization, high-resolution cycle timestamping,
-; fast string streaming memory operations, and ring-0 architectural register
-; manipulation.
+; fast string streaming memory operations, ring-0 architectural register
+; manipulation, and MMU/TLB invalidation primitives.
 ;==============================================================================
 
 .code
@@ -168,6 +168,15 @@ UnpdReadCr3 PROC
 UnpdReadCr3 ENDP
 
 ;------------------------------------------------------------------------------
+; void UnpdWriteCr3(uint64_t value)
+; Sets the CR3 page directory base register, invalidating non-global TLB entries.
+;------------------------------------------------------------------------------
+UnpdWriteCr3 PROC
+    mov     cr3, rcx
+    ret
+UnpdWriteCr3 ENDP
+
+;------------------------------------------------------------------------------
 ; uint64_t UnpdReadCr4(void)
 ; Returns the CR4 control register value.
 ;------------------------------------------------------------------------------
@@ -184,6 +193,34 @@ UnpdWriteCr4 PROC
     mov     cr4, rcx
     ret
 UnpdWriteCr4 ENDP
+
+;------------------------------------------------------------------------------
+; void UnpdInvlpg(const void* virtualAddress)
+; Invalidates the TLB mapping for the specified virtual address.
+;------------------------------------------------------------------------------
+UnpdInvlpg PROC
+    invlpg  byte ptr [rcx]
+    ret
+UnpdInvlpg ENDP
+
+;------------------------------------------------------------------------------
+; void UnpdWbinvd(void)
+; Flushes internal CPU caches and writes back all modified cache lines.
+;------------------------------------------------------------------------------
+UnpdWbinvd PROC
+    wbinvd
+    ret
+UnpdWbinvd ENDP
+
+;------------------------------------------------------------------------------
+; void UnpdFlushTlb(void)
+; Reloads CR3 to flush all non-global TLB translation entries.
+;------------------------------------------------------------------------------
+UnpdFlushTlb PROC
+    mov     rax, cr3
+    mov     cr3, rax
+    ret
+UnpdFlushTlb ENDP
 
 ;------------------------------------------------------------------------------
 ; uint64_t UnpdReadMsr(uint32_t msr)
@@ -218,5 +255,15 @@ UnpdGetRflags PROC
     pop     rax
     ret
 UnpdGetRflags ENDP
+
+;------------------------------------------------------------------------------
+; void UnpdSetRflags(uint64_t flags)
+; Sets the RFLAGS register.
+;------------------------------------------------------------------------------
+UnpdSetRflags PROC
+    push    rcx
+    popfq
+    ret
+UnpdSetRflags ENDP
 
 END

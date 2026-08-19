@@ -31,8 +31,14 @@ uint64_t UnpdReadCr0(void);
 void     UnpdWriteCr0(uint64_t value);
 uint64_t UnpdReadCr2(void);
 uint64_t UnpdReadCr3(void);
+void     UnpdWriteCr3(uint64_t value);
 uint64_t UnpdReadCr4(void);
 void     UnpdWriteCr4(uint64_t value);
+
+// TLB & MMU Cache Operations (Ring-0)
+void UnpdInvlpg(const void* virtualAddress);
+void UnpdWbinvd(void);
+void UnpdFlushTlb(void);
 
 // Model-Specific Registers (Ring-0 MSR)
 uint64_t UnpdReadMsr(uint32_t msr);
@@ -40,6 +46,7 @@ void     UnpdWriteMsr(uint32_t msr, uint64_t value);
 
 // Processor State & Flags
 uint64_t UnpdGetRflags(void);
+void     UnpdSetRflags(uint64_t flags);
 
 #ifdef __cplusplus
 }
