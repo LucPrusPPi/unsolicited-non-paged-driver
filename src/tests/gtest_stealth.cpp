@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <unpd/common.h>
 #include <unpd/stealth/piddb_cleaner.hpp>
 #include <unpd/stealth/unloaded_cleaner.hpp>
 

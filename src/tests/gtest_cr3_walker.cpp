@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <unpd/common.h>
 #include <unpd/mmu/physical_memory.hpp>
 #include <unpd/mmu/cr3_walker.hpp>
 #include <unpd/mmu/pte_remapper.hpp>
