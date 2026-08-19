@@ -12,8 +12,15 @@ An academic-grade, modern C++20 Windows Kernel Driver framework, universal memor
 [![Memory Engine](https://img.shields.io/badge/memory-MDL%20%7C%20Pool%20%7C%20Slab%20%7C%20Section-yellow.svg?style=flat-square)]()
 [![Scripting](https://img.shields.io/badge/scripting-Python%20%7C%20Shell%20%7C%20Lua-blueviolet.svg?style=flat-square)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011%20x64-informational.svg?style=flat-square)]()
-[![Package Manager](https://img.shields.io/badge/vcpkg-supported-purple.svg?style=flat-square)]()
-[![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)]()
+[![Package Manager](https://img.shields.io/badge/vcpkg-supported-purple.svg?style=flat-square)](https://github.com/LucPrusPPi/unsolicited-non-paged-driver)
+[![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)](LICENSE)
+
+<p align="center">
+  <b><a href="docs/ARCHITECTURE.md">Architecture & MMU</a></b> •
+  <b><a href="docs/IOCTL_PROTOCOL.md">IOCTL Protocol</a></b> •
+  <b><a href="docs/LANGUAGES.md">Language Metrics</a></b> •
+  <b><a href="docs/VM_SETUP.md">VM & Testmode Guide</a></b>
+</p>
 
 </div>
 

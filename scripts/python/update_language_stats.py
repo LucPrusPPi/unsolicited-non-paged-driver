@@ -100,8 +100,9 @@ def scan_repository():
             if matched_lang:
                 try:
                     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                        lines = len(f.readlines())
-                    size = file_path.stat().st_size
+                        content = f.read().replace("\r\n", "\n")
+                    lines = len(content.splitlines())
+                    size = len(content.encode("utf-8"))
                     stats[matched_lang]["files"] += 1
                     stats[matched_lang]["lines"] += lines
                     stats[matched_lang]["bytes"] += size
