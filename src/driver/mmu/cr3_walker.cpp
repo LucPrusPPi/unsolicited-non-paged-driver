@@ -11,10 +11,6 @@ ULONG64 Cr3Walker::TranslateVirtualToPhysical(ULONG64 cr3, ULONG64 virtualAddres
         return 0;
     }
 
-#ifndef _KERNEL_MODE
-    // Deterministic mock algorithm for usermode testing
-    return (cr3 & ~0xFFFULL) + (virtualAddress & 0xFFFULL);
-#else
     const ULONG64 pml4Base = cr3 & 0x000FFFFFFFFFF000ULL;
     const ULONG64 pml4Index = (virtualAddress >> 39) & 0x1FFULL;
     const ULONG64 pml4eAddress = pml4Base + (pml4Index * sizeof(ULONG64));
@@ -64,7 +60,6 @@ ULONG64 Cr3Walker::TranslateVirtualToPhysical(ULONG64 cr3, ULONG64 virtualAddres
 
     // Standard 4KB Page
     return (pte & 0x000FFFFFFFFFF000ULL) + (virtualAddress & 0xFFFULL);
-#endif
 }
 
 NTSTATUS Cr3Walker::ReadProcessMemoryCr3(ULONG64 cr3, ULONG64 virtualAddress, PVOID buffer, SIZE_T size, PSIZE_T bytesRead) {

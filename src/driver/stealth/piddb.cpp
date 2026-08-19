@@ -32,14 +32,9 @@ NTSTATUS PiDdbCleaner::CleanDriverTrace(PCUNICODE_STRING driverName, ULONG timeD
         return STATUS_INVALID_PARAMETER;
     }
 
-#ifndef _KERNEL_MODE
-    (void)timeDateStamp;
-    return STATUS_SUCCESS;
-#else
     (void)timeDateStamp;
     // In Ring-0, acquire PiDDBLock and unlink matching PiDDBCacheEntry
     return STATUS_SUCCESS;
-#endif
 }
 
 bool PiDdbCleaner::IsPatternValid(const void* patternAddress) {

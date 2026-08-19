@@ -202,12 +202,8 @@ if(UNPD_BUILD_TESTS)
         src/tests/test_mmu.cpp
         src/tests/test_stealth.cpp
         src/tests/test_cr3_walker.cpp
-        src/driver/mmu/physical_memory.cpp
-        src/driver/mmu/cr3_walker.cpp
-        src/driver/stealth/piddb.cpp
-        src/driver/stealth/unloaded_drivers.cpp
-        src/driver/comm/shared_memory.cpp
-        src/driver/exec/apc.cpp
+        src/tests/test_virtual_mmu.cpp
+        src/tests/emulator/virtual_mmu.cpp
         src/driver/kernel_asm.asm
     )
 

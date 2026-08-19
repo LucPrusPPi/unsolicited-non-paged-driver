@@ -14,12 +14,8 @@ NTSTATUS UnloadedCleaner::CleanUnloadedDrivers(PCUNICODE_STRING driverName) {
         return STATUS_INVALID_PARAMETER;
     }
 
-#ifndef _KERNEL_MODE
-    return STATUS_SUCCESS;
-#else
     // Ring-0: scan MmUnloadedDrivers array, compact active entries, decrement MmLastUnloadedDriver
     return STATUS_SUCCESS;
-#endif
 }
 
 NTSTATUS UnloadedCleaner::CleanBigPoolTable(PVOID allocationAddress) {
@@ -27,12 +23,8 @@ NTSTATUS UnloadedCleaner::CleanBigPoolTable(PVOID allocationAddress) {
         return STATUS_INVALID_PARAMETER;
     }
 
-#ifndef _KERNEL_MODE
-    return STATUS_SUCCESS;
-#else
     // Ring-0: scan PoolBigPageTable and clear NonPagedPool tracking record
     return STATUS_SUCCESS;
-#endif
 }
 
 #endif // UNPD_FEATURE_STEALTH_CLEANERS

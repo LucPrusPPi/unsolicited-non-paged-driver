@@ -39,6 +39,7 @@ __pycache__/
 *.pyc
 
 # Local Tooling & Configs
+references/
 .gemini/
 .claude/
 CLAUDE.md
