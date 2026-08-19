@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 #include "unpd/mmu/paging_types.hpp"
+#include "unpd/mmu/descriptors.hpp"
+#include "unpd/kernel_asm.hpp"
 #include "unpd/kstd/kstd_span.hpp"
 #include "unpd/kstd/kstd_expected.hpp"
 #include "unpd/kstd/kstd_unique_ptr.hpp"
@@ -94,4 +96,79 @@ TEST_F(MmuPagingTest, KstdExpected_SuccessAndErrorHandling) {
     EXPECT_FALSE(errVal.has_value());
     EXPECT_EQ(errVal.error(), -1);
     EXPECT_EQ(errVal.value_or(100), 100);
+}
+
+TEST_F(MmuPagingTest, DescriptorStructures_ExactSizes) {
+    EXPECT_EQ(sizeof(DESCRIPTOR_TABLE_REGISTER_64), 10);
+    EXPECT_EQ(sizeof(IDT_ENTRY_64), 16);
+    EXPECT_EQ(sizeof(GDT_ENTRY_64), 8);
+    EXPECT_EQ(sizeof(TSS64), 104);
+    EXPECT_EQ(sizeof(DR7_REGISTER_64), 8);
+    EXPECT_EQ(sizeof(CR0_REGISTER_64), 8);
+    EXPECT_EQ(sizeof(CR4_REGISTER_64), 8);
+    EXPECT_EQ(sizeof(IA32_EFER_REGISTER_64), 8);
+    EXPECT_EQ(sizeof(IA32_PAT_REGISTER_64), 8);
+}
+
+TEST_F(MmuPagingTest, IdtEntry_OffsetPackingAndUnpacking) {
+    IDT_ENTRY_64 idt{};
+    const uint64_t handler = 0xFFFFF80012345678ULL;
+
+    idt.SetOffset(handler);
+    idt.Selector = 0x10;
+    idt.Type = 0xE; // 64-bit Interrupt Gate
+    idt.Present = 1;
+    idt.Dpl = 0;
+
+    EXPECT_EQ(idt.GetOffset(), handler);
+    EXPECT_EQ(idt.Selector, 0x10);
+    EXPECT_EQ(idt.Type, 0xE);
+    EXPECT_EQ(idt.Present, 1);
+    EXPECT_EQ(idt.Dpl, 0);
+}
+
+TEST_F(MmuPagingTest, Dr7Register_BitfieldDecomposition) {
+    DR7_REGISTER_64 dr7{};
+    dr7.L0 = 1;         // Enable DR0 local breakpoint
+    dr7.RW0 = 0b01;     // Break on data write
+    dr7.LEN0 = 0b10;    // 8-byte watchpoint length
+    dr7.GE = 1;         // Global exact
+
+    EXPECT_EQ(dr7.L0, 1);
+    EXPECT_EQ(dr7.RW0, 1);
+    EXPECT_EQ(dr7.LEN0, 2);
+    EXPECT_EQ(dr7.GE, 1);
+    EXPECT_NE(dr7.Value, 0ULL);
+}
+
+TEST_F(MmuPagingTest, HardwareCrc32_ComputationCorrectness) {
+    const char testStr[] = "UNPD_HARDWARE_CRC32_BENCHMARK";
+    uint32_t crc = UnpdComputeCrc32_Buffer(0, testStr, sizeof(testStr) - 1);
+    EXPECT_NE(crc, 0U);
+
+    // Byte by byte incremental consistency
+    uint32_t stepCrc = 0;
+    for (size_t i = 0; i < sizeof(testStr) - 1; ++i) {
+        stepCrc = UnpdComputeCrc32_u8(stepCrc, static_cast<uint8_t>(testStr[i]));
+    }
+    EXPECT_EQ(crc, stepCrc);
+}
+
+TEST_F(MmuPagingTest, AtomicBitwisePrimitives_Operations) {
+    int64_t bitmap = 0;
+
+    // Test BitSet
+    uint32_t oldBit0 = UnpdAtomicBitSet(&bitmap, 0);
+    EXPECT_EQ(oldBit0, 0U);
+    EXPECT_EQ(bitmap, 1LL);
+
+    uint32_t oldBit42 = UnpdAtomicBitSet(&bitmap, 42);
+    EXPECT_EQ(oldBit42, 0U);
+    EXPECT_TRUE(UnpdAtomicBitTest(&bitmap, 42));
+
+    // Test BitReset
+    uint32_t oldBitReset = UnpdAtomicBitReset(&bitmap, 0);
+    EXPECT_EQ(oldBitReset, 1U);
+    EXPECT_FALSE(UnpdAtomicBitTest(&bitmap, 0));
+    EXPECT_TRUE(UnpdAtomicBitTest(&bitmap, 42));
 }

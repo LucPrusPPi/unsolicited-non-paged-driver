@@ -51,7 +51,7 @@ jobs:
         run: |
           ninja -C build
 
-      - name: Run GoogleTest Suite (29 Tests)
+      - name: Run GoogleTest Suite (34 Tests)
         shell: cmd
         run: |
           .\build\bin\unpd_tests.exe --gtest_color=yes

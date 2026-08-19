@@ -194,6 +194,7 @@ if(UNPD_BUILD_TESTS)
         src/tests/gtest_fuzzing.cpp
         src/tests/gtest_stress.cpp
         src/tests/gtest_mmu.cpp
+        src/driver/kernel_asm.asm
     )
 
     add_executable(unpd_tests ${TEST_SOURCES})
@@ -211,19 +212,19 @@ if(UNPD_BUILD_TESTS)
     )
 
     target_compile_options(unpd_tests PRIVATE
-        /W4
-        /permissive-
-        /EHsc
-        /wd4201
+        $<$<COMPILE_LANGUAGE:CXX,C>:/W4>
+        $<$<COMPILE_LANGUAGE:CXX,C>:/permissive->
+        $<$<COMPILE_LANGUAGE:CXX,C>:/EHsc>
+        $<$<COMPILE_LANGUAGE:CXX,C>:/wd4201>
     )
 
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         target_compile_options(unpd_tests PRIVATE
-            -Wno-unknown-warning-option
-            -Wno-unused-lambda-capture
-            -Wno-nonportable-include-path
-            -Wno-c++11-narrowing
-            -Wno-character-conversion
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-unknown-warning-option>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-unused-lambda-capture>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-nonportable-include-path>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-c++11-narrowing>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-character-conversion>
         )
     endif()
 

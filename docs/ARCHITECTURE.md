@@ -34,6 +34,8 @@ The **Unsolicited Non-Paged Driver (UNPD)** framework is designed around determi
  |     Hardware Assembly Layer        |                     |
  |     - MASM64 Serialization Fences  |<--------------------+
  |     - rdtsc / rdtscp / invlpg      |
+ |     - SSE4.2 CRC32 / Atomic BTS    |
+ |     - DR0..DR7 / IDT / GDT / CR8   |
  +------------------------------------+
 ```
 
@@ -69,74 +71,49 @@ The **Unsolicited Non-Paged Driver (UNPD)** framework is designed around determi
 
 ---
 
-## 3. Deep Dive: Memory Descriptor List (MDL) Architecture & Usage
-
-A **Memory Descriptor List (MDL)** is the Windows NT kernel's native structure for describing physical memory pages backing a contiguous virtual address range or an allocated physical page set.
-
-### 3.1 Layout of the `MDL` Structure
-In the NT kernel, `MDL` is defined as:
-```c
-typedef struct _MDL {
-    struct _MDL *Next;
-    CSHORT Size;
-    CSHORT MdlFlags;
-    struct _EPROCESS *Process;
-    PVOID MappedSystemVa;
-    PVOID StartVa;
-    ULONG ByteCount;
-    ULONG ByteOffset;
-    // Followed immediately in memory by an array of physical page frame numbers:
-    // PFN_NUMBER PfnArray[ (ByteCount + ByteOffset + PAGE_SIZE - 1) / PAGE_SIZE ];
-} MDL, *PMDL;
-```
-
-### 3.2 Complete MDL Lifecycle in UNPD (`MdlMemoryEngine`)
+## 3. MDL Zero-Copy Shared Memory Lifecycle
 
 ```
-   1. Physical Frame Allocation (No Virtual Address Consumed)
-      MmAllocatePagesForMdlEx(low, high, skip, bytes, MmCached, MM_ALLOCATE_PREFER_CONTIGUOUS)
-                                  |
-                                  v  Returns PMDL describing physical PFN array
-   2. Zero-Copy User Space Mapping
-      MmMapLockedPagesSpecifyCache(mdl, UserMode, MmCached, NULL, FALSE, NormalPagePriority | MdlMappingNoExecute)
-                                  |
-                                  v  Allocates user PTEs (0x000000000000..0x7FFFFFFFFFFF)
-   3. Lock-Free Double Buffering & Atomic Swap
-      User writes to Active Buffer -> InterlockedExchange(ActiveIndex) -> UnpdMemoryFence()
-                                  |
-                                  v
-   4. Deterministic Cleanup on Session Close / Driver Unload
-      MmUnmapLockedPages(userVa, mdl)  [Must execute in owning process context]
-      MmFreePagesFromMdl(mdl)          [Releases physical frames to OS Free PFN list]
-      IoFreeMdl(mdl)                   [Frees the MDL header itself]
+[ Usermode Process ]                        [ UNPD Driver ]                      [ Windows NT Kernel ]
+        |                                          |                                       |
+        |--- IOCTL_UNPD_MAP_SHARED_MEMORY -------->|                                       |
+        |    (PageCount = 16, Class = 0)           |--- MmAllocatePagesForMdlEx ---------->|
+        |                                          |    (Low=0, High=MAX, NonPagedPoolNx)  |
+        |                                          |<-- Returns MDL (PFN Array) -----------|
+        |                                          |                                       |
+        |                                          |--- MmMapLockedPagesSpecifyCache ----->|
+        |                                          |    (UserMode, MmCached, NoExecute)    |
+        |                                          |<-- Mapped User Virtual Address -------|
+        |<-- Returns SessionHandle & UserVA -------|                                       |
+        |                                          |                                       |
+        |=== Lockless Buffer Exchange (Atomic) ====|                                       |
+        |--- Write telemetry into active buffer ---|                                       |
+        |--- IOCTL_UNPD_SWAP_BUFFERS ------------->|--- Atomic XCHG + MFENCE ------------->|
+        |                                          |--- Invalidate Standby Page (INVLPG) ->|
+        |                                          |<-- Standby Buffer Now Active ---------|
+        |                                          |                                       |
+        |=== Teardown / Process Detach ============|                                       |
+        |--- IOCTL_UNPD_UNMAP_SHARED_MEMORY ------>|                                       |
+        |                                          |--- KeStackAttachProcess (Process) --->|
+        |                                          |--- MmUnmapLockedPages (UserVA) ------>|
+        |                                          |--- KeUnstackDetachProcess ----------->|
+        |                                          |--- MmFreePagesFromMdl (MDL) --------->|
+        |                                          |--- IoFreeMdl (MDL) ------------------>|
+        |<-- Status: STATUS_SUCCESS ---------------|                                       |
 ```
-
-### 3.3 Why MDL Zero-Copy Outperforms Buffered & Direct I/O
-1. **Zero System Call Overhead**: Once mapped, data streams directly through memory without issuing `DeviceIoControl` syscalls.
-2. **Zero Kernel Virtual Address (KVA) Consumption**: Pages are allocated directly from physical memory and mapped into User VA without consuming scarce NonPaged Pool or System PTEs.
-3. **Hardware DEP (Data Execution Prevention) Compliance**: Passing `MdlMappingNoExecute` guarantees that mapped pages have the NX bit set in their PTEs, preventing arbitrary code execution.
-4. **PFN Database Integrity**: Unlike manual PTE manipulation, `MmAllocatePagesForMdlEx` properly increments PFN reference counts in `nt!MmPfnDatabase`, ensuring zero `0x4E: PFN_LIST_CORRUPT` bugchecks during process exit or memory trimming.
 
 ---
 
-## 4. Deep Dive: x86-64 CR3 Architecture & MMU Paging
+## 4. Hardware MMU & 4-Level x86-64 Paging
 
-The x86-64 processor MMU uses the **CR3 Control Register** (also known as the Page Directory Base Register - PDBR) as the hardware root for 4-level linear address translation.
+### 4.1 64-Bit CR3 Register Layout
+CR3 register holds the physical address of the Page Map Level 4 (PML4) base table:
+- **Bits [51..12]**: PML4 Base Physical Address (4KB aligned).
+- **Bits [11..0]**: PCID (Process-Context Identifier).
+- **Bit 3 (PWT)**: Page-level Write-Through.
+- **Bit 4 (PCD)**: Page-level Cache Disable.
 
-### 4.1 CR3 Register Format & Flags
-```
- 63                                  52 51                               12 11        5 4   3 2      0
-+--------------------------------------+-----------------------------------+-----------+---+---+------+
-|               Reserved               |    PML4 Physical Base Address     |  Reserved |PCD|PWT| PCID |
-|                (MBZ)                 |            (Bits 51..12)          |   (MBZ)   |   |   |(0..11|
-+--------------------------------------+-----------------------------------+-----------+---+---+------+
-```
-- **PML4 Physical Base Address (Bits 12..51)**: 4KB-aligned physical memory address pointing to the base of the Page Map Level 4 table (512 entries x 8 bytes = 4096 bytes).
-- **PCID (Process Context Identifier, Bits 0..11)**: When enabled in CR4 (`CR4.PCIDE = 1`), allows the CPU TLB to tag translations per process, preventing complete TLB flushes across context switches.
-- **PWT (Page-level Write-Through, Bit 3)**: Enables write-through caching for the PML4 table.
-- **PCD (Page-level Cache Disable, Bit 4)**: Disables processor caching for PML4 memory lookups.
-
-### 4.2 4-Level Canonical Virtual Address Translation Walk
+### 4.2 4-Level Linear Translation Walk
 On x86-64 Long Mode with 48-bit canonical addressing:
 
 ```
@@ -191,3 +168,26 @@ public:
 2. **`SlabMemoryEngine`**: High-performance Lookaside lists (`NPAGED_LOOKASIDE_LIST`) for 64B, 256B, 1024B, and 4096B fixed-size blocks.
 3. **`PoolMemoryEngine`**: Tracked NonPagedPoolNx allocations via `ExAllocatePool2` with handle tracking.
 4. **`DirectNeitherEngine`**: Probed user virtual address validation with Structured Exception Handling (`ProbeForRead` / `ProbeForWrite`).
+
+---
+
+## 6. x86-64 Low-Level Assembly Subsystem & Descriptor Tables
+
+UNPD provides complete architectural access to x86-64 control, debug, descriptor, and performance structures:
+
+### 6.1 Descriptor Table Registers & Segments
+- **`DESCRIPTOR_TABLE_REGISTER_64`**: 10-byte structure (`Limit: uint16_t`, `BaseAddress: uint64_t`) for `sgdt` and `sidt`.
+- **`IDT_ENTRY_64`**: 16-byte x86-64 Interrupt and Trap Gate descriptor with 64-bit ISR target packing (`SetOffset` / `GetOffset`).
+- **`GDT_ENTRY_64`**: 8-byte segment descriptor with 64-bit LongMode and 4KB Granularity bitfields.
+- **`TSS64`**: 104-byte Task State Segment defining Ring-0..2 RSP and IST1..IST7 interrupt stacks.
+- **Segment Selectors**: `UnpdGetCs`, `UnpdGetDs`, `UnpdGetEs`, `UnpdGetSs`, `UnpdGetFs`, `UnpdGetGs`, `UnpdGetTr`, `UnpdGetLdtr`.
+
+### 6.2 Hardware Debug Registers (DR0..DR7) & CR8 / XCR0
+- **`DR7_REGISTER_64`**: Complete bitfield layout for hardware breakpoint conditions (`RW0..RW3`: Execution, Write, I/O, Read/Write) and watchpoint lengths (`LEN0..LEN3`: 1B, 2B, 8B, 4B).
+- **`DR0..DR3, DR6`**: Breakpoint linear addresses and debug status register primitives (`UnpdReadDr*` / `UnpdWriteDr*`).
+- **`CR8 (TPR)`**: Task Priority Register access (`UnpdReadCr8` / `UnpdWriteCr8`) for direct hardware IRQL management.
+- **`XCR0`**: Extended Control Register access (`xgetbv` / `xsetbv`) for AVX, AVX-512, and XSAVE state management.
+
+### 6.3 Hardware-Accelerated SSE4.2 CRC32 & Lockless Bit Manipulation
+- **`UnpdComputeCrc32_Buffer`**: High-throughput vectorized QWORD assembly loop utilizing `crc32 rax, rdx` for instantaneous zero-overhead packet and memory integrity validation.
+- **`UnpdAtomicBitSet` / `UnpdAtomicBitReset` / `UnpdAtomicBitTest`**: Hardware-locked bitwise primitives (`lock bts`, `lock btr`, `bt`) for lockless bitmap allocation tracking.

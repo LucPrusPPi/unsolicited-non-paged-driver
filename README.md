@@ -5,7 +5,7 @@
 An academic-grade, modern C++20 Windows Kernel Driver framework, universal memory manager, x86-64 MMU paging engine, and automated GoogleTest test-signing harness.
 
 [![CI Pipeline](https://img.shields.io/badge/CI%20Matrix-6%2F6%20passing-brightgreen.svg?style=flat-square)](https://github.com/LucPrusPPi/unsolicited-non-paged-driver/actions)
-[![GoogleTest](https://img.shields.io/badge/tests-29%20passed-success.svg?style=flat-square)]()
+[![GoogleTest](https://img.shields.io/badge/tests-34%20passed-success.svg?style=flat-square)]()
 [![C++ Standard](https://img.shields.io/badge/C%2B%2B-20-blue.svg?style=flat-square)]()
 [![Architecture](https://img.shields.io/badge/arch-x64%20%2F%20MASM64-orange.svg?style=flat-square)]()
 [![MMU Paging](https://img.shields.io/badge/MMU-CR3%20%2F%20PML4%20%2F%20PTE-red.svg?style=flat-square)]()
@@ -25,12 +25,12 @@ Windows kernel driver development has historically suffered from fragmented C-st
 
 Built from the ground up for Windows 10 and Windows 11 x64, UNPD provides:
 - **Modular Universal Memory**: Physical zero-copy MDL mapping, tracked NonPagedPoolNx, Lookaside slab pools (64B..4KB), and named shared section mapping.
-- **x86-64 MMU & Paging Engine**: Complete bitfield models for CR3, PML4, PDPTE, PDE, and PTE entries, address decomposition, PFN arithmetic, and process memory primitives (`ZwAllocateVirtualMemory`, `KeStackAttachProcess`, SEH probes).
+- **x86-64 MMU & Paging Engine**: Complete bitfield models for CR3, PML4, PDPTE, PDE, PTE, IDT, GDT, TSS64, DR0..DR7, address decomposition, PFN arithmetic, and process memory primitives (`ZwAllocateVirtualMemory`, `KeStackAttachProcess`, SEH probes).
 - **Kernel C++20 STL (`kstd`)**: Freestanding `kstd::span<T>`, `kstd::expected<T, NTSTATUS>`, and `kstd::unique_ptr<T, Tag>`.
 - **Public C++20 Usermode Client SDK**: High-level RAII client (`include/unpd/client.hpp`) with automated loopback fallback for CI environments.
-- **Hardware Assembly (MASM64)**: Ring-0 memory fences, cycle counters (`rdtsc`/`rdtscp`), CR0..CR4, MSRs, and TLB invalidation (`invlpg`, `wbinvd`, CR3 reload).
+- **Hardware Assembly (MASM64)**: Ring-0 memory fences, cycle counters (`rdtsc`/`rdtscp`), CR0..CR8, MSRs, DR0..DR7, descriptor tables (`sgdt`, `sidt`, `str`), hardware SSE4.2 CRC32 acceleration, and TLB invalidation (`invlpg`, `wbinvd`, CR3 reload).
 - **Multi-Language Automation**: Complete mirrored scripting support in PowerShell, POSIX Shell (Git Bash/WSL), Python 3, and Lua.
-- **Automated Matrix CI**: 6-job matrix in GitHub Actions (MSVC & Clang-CL in Release and Debug, Python tooling validation, schema audit) with 29 automated tests.
+- **Automated Matrix CI**: 6-job matrix in GitHub Actions (MSVC & Clang-CL in Release and Debug, Python tooling validation, schema audit) with 34 automated tests.
 
 ---
 
@@ -60,7 +60,8 @@ Built from the ground up for Windows 10 and Windows 11 x64, UNPD provides:
  |  - RAII Spinlocks / Mutexes |     |    Universal Memory Manager   |
  |  - MASM64 Memory Barriers   |     |    - Non-Paged Pool (ExAlloc2)|
  |  - MMU 4-Level Page Walking |     |    - Lookaside Lists          |
- +-----------------------------+     +-------------------------------+
+ |  - Hardware SSE4.2 CRC32    |     +-------------------------------+
+ +-----------------------------+
 ```
 
 ---
@@ -81,12 +82,18 @@ Built from the ground up for Windows 10 and Windows 11 x64, UNPD provides:
 - Virtual page allocation and commit via `ZwAllocateVirtualMemory` / `ZwFreeVirtualMemory`.
 - TLB invalidation primitives: `UnpdInvlpg` (`invlpg`), `UnpdWbinvd` (`wbinvd`), `UnpdFlushTlb`.
 
-### 3. Freestanding Kernel C++20 Toolkit (`kstd`)
+### 3. Descriptor Tables & Hardware Assembly Primitives (MASM64)
+- Descriptor tables: `DESCRIPTOR_TABLE_REGISTER_64`, `IDT_ENTRY_64`, `GDT_ENTRY_64`, `TSS64`.
+- Hardware Debug Registers: `DR0..DR3`, `DR6`, `DR7_REGISTER_64` (Execution, Write, I/O watchpoints).
+- Extended registers: `CR8` (Task Priority Register), `XCR0` (AVX/XSAVE state), `IA32_EFER`, `IA32_PAT`.
+- Hardware SSE4.2 CRC32 memory streaming (`UnpdComputeCrc32_Buffer`) and atomic bit operations (`bts`, `btr`, `bt`).
+
+### 4. Freestanding Kernel C++20 Toolkit (`kstd`)
 - `kstd::span<T>`: Type-safe memory views without CRT dependencies.
 - `kstd::expected<T, NTSTATUS>`: Value-or-status container for exception-free error propagation.
 - `kstd::unique_ptr<T, Tag>`: Automatic tagged pool cleanup on scope exit.
 
-### 4. Usermode Client SDK (`include/unpd/client.hpp`)
+### 5. Usermode Client SDK (`include/unpd/client.hpp`)
 - `unpd::DriverClient`: Connects to `\\.\UnsolicitedNonPagedDriver`, manages shared memory sessions, atomic buffer swapping, and slab allocations with automatic mock fallback for non-kernel test environments.
 
 ---
@@ -106,12 +113,12 @@ Built from the ground up for Windows 10 and Windows 11 x64, UNPD provides:
 ### 1-Click Template Customizer (Rebranding)
 To instantiate this template for a new driver project:
 ```bash
-python scripts/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
+python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 ```
 
 ---
 
-## GoogleTest Validation Suite (29 Tests)
+## GoogleTest Validation Suite (34 Tests)
 
 | Test Suite | Test Case | Type | Expected Result |
 |---|---|---|---|
@@ -144,6 +151,11 @@ python scripts/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 | `MmuPagingTest` | `PtEntry_BitfieldsVerification` | MMU | Verifies PTE bitfields (Present, PFN, NX, RW) |
 | `MmuPagingTest` | `KstdSpan_MemoryViewOperations` | Kernel STL | Validates kstd::span slicing and element access |
 | `MmuPagingTest` | `KstdExpected_SuccessAndErrorHandling` | Kernel STL | Validates kstd::expected value-or-status mechanics |
+| `MmuPagingTest` | `DescriptorStructures_ExactSizes` | Hardware | Verifies exact sizes of IDT, GDT, TSS64, DR7, CR0, CR4 |
+| `MmuPagingTest` | `IdtEntry_OffsetPackingAndUnpacking` | Hardware | Tests 64-bit ISR address packing in IDT_ENTRY_64 |
+| `MmuPagingTest` | `Dr7Register_BitfieldDecomposition` | Hardware | Validates DR7 breakpoint condition and length bitfields |
+| `MmuPagingTest` | `HardwareCrc32_ComputationCorrectness` | Assembly | Validates SSE4.2 CRC32 buffer hashing against byte loop |
+| `MmuPagingTest` | `AtomicBitwisePrimitives_Operations` | Assembly | Validates lock bts, lock btr, and bt bitwise atomics |
 
 ---
 
@@ -176,7 +188,9 @@ python scripts/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 │   │   └── universal_memory.hpp# MDL, System Pool, Sections, and Slab caches
 │   └── mmu/                    # Hardware MMU & Paging Subsystem
 │       ├── paging_types.hpp    # x86-64 CR3, PML4, PDP, PD, PTE bitfields
-│       └── paging_engine.hpp   # Page walking, process attach, virtual memory
+│       ├── paging_engine.hpp   # Page walking, process attach, virtual memory
+│       └── descriptors.hpp     # IDT, GDT, TSS64, DR0..DR7, CR0, CR4, EFER, PAT
+
 ├── src/
 │   ├── driver/                 # Kernel driver implementation (unpd.sys)
 │   │   ├── driver_entry.cpp    # DriverEntry and deterministic teardown

@@ -34,6 +34,8 @@ uint64_t UnpdReadCr3(void);
 void     UnpdWriteCr3(uint64_t value);
 uint64_t UnpdReadCr4(void);
 void     UnpdWriteCr4(uint64_t value);
+uint64_t UnpdReadCr8(void);
+void     UnpdWriteCr8(uint64_t value);
 
 // TLB & MMU Cache Operations (Ring-0)
 void UnpdInvlpg(const void* virtualAddress);
@@ -47,6 +49,50 @@ void     UnpdWriteMsr(uint32_t msr, uint64_t value);
 // Processor State & Flags
 uint64_t UnpdGetRflags(void);
 void     UnpdSetRflags(uint64_t flags);
+
+// Descriptor Table Registers
+void     UnpdGetGdt(void* gdtr);
+void     UnpdGetIdt(void* idtr);
+uint16_t UnpdGetTr(void);
+uint16_t UnpdGetLdtr(void);
+
+// Segment Selectors
+uint16_t UnpdGetCs(void);
+uint16_t UnpdGetDs(void);
+uint16_t UnpdGetEs(void);
+uint16_t UnpdGetSs(void);
+uint16_t UnpdGetFs(void);
+uint16_t UnpdGetGs(void);
+
+// Hardware Debug Registers (DR0..DR7)
+uint64_t UnpdReadDr0(void);
+void     UnpdWriteDr0(uint64_t value);
+uint64_t UnpdReadDr1(void);
+void     UnpdWriteDr1(uint64_t value);
+uint64_t UnpdReadDr2(void);
+void     UnpdWriteDr2(uint64_t value);
+uint64_t UnpdReadDr3(void);
+void     UnpdWriteDr3(uint64_t value);
+uint64_t UnpdReadDr6(void);
+void     UnpdWriteDr6(uint64_t value);
+uint64_t UnpdReadDr7(void);
+void     UnpdWriteDr7(uint64_t value);
+
+// Extended Control Registers & Performance Counters
+uint64_t UnpdGetXcr0(void);
+void     UnpdSetXcr0(uint64_t value);
+uint64_t UnpdReadPmc(uint32_t counter);
+
+// Atomic Bitwise Operations
+uint32_t UnpdAtomicBitSet(volatile int64_t* base, int64_t bit);
+uint32_t UnpdAtomicBitReset(volatile int64_t* base, int64_t bit);
+uint32_t UnpdAtomicBitTest(const volatile int64_t* base, int64_t bit);
+
+// Hardware SSE4.2 CRC32 Primitives
+uint32_t UnpdComputeCrc32_u8(uint32_t initialCrc, uint8_t data);
+uint32_t UnpdComputeCrc32_u32(uint32_t initialCrc, uint32_t data);
+uint64_t UnpdComputeCrc32_u64(uint64_t initialCrc, uint64_t data);
+uint32_t UnpdComputeCrc32_Buffer(uint32_t initialCrc, const void* buffer, uint64_t length);
 
 #ifdef __cplusplus
 }
