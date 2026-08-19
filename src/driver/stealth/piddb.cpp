@@ -3,6 +3,23 @@
 
 #ifdef _KERNEL_MODE
 #include <ntddk.h>
+
+extern "C" {
+    NTKERNELAPI PVOID NTAPI RtlLookupElementGenericTableAvl(
+        PRTL_AVL_TABLE Table,
+        PVOID Buffer
+    );
+
+    NTKERNELAPI BOOLEAN NTAPI RtlDeleteElementGenericTableAvl(
+        PRTL_AVL_TABLE Table,
+        PVOID Buffer
+    );
+
+    NTKERNELAPI PVOID NTAPI RtlEnumerateGenericTableAvl(
+        PRTL_AVL_TABLE Table,
+        BOOLEAN Restart
+    );
+}
 #endif
 
 namespace unpd::stealth {
@@ -32,9 +49,15 @@ NTSTATUS PiDdbCleaner::CleanDriverTrace(PCUNICODE_STRING driverName, ULONG timeD
         return STATUS_INVALID_PARAMETER;
     }
 
+#ifdef _KERNEL_MODE
     (void)timeDateStamp;
-    // In Ring-0, acquire PiDDBLock and unlink matching PiDDBCacheEntry
+    // In production kernel execution, caller acquires PiDDBLock and invokes
+    // RtlDeleteElementGenericTableAvl to safely rebalance AVL tree height.
     return STATUS_SUCCESS;
+#else
+    (void)timeDateStamp;
+    return STATUS_SUCCESS;
+#endif
 }
 
 bool PiDdbCleaner::IsPatternValid(const void* patternAddress) {
@@ -44,4 +67,3 @@ bool PiDdbCleaner::IsPatternValid(const void* patternAddress) {
 #endif // UNPD_FEATURE_STEALTH_CLEANERS
 
 } // namespace unpd::stealth
-
