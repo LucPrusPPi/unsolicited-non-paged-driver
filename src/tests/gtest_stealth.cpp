@@ -7,7 +7,9 @@ TEST(StealthTest, PiDdbCleanerValidation) {
     UNICODE_STRING mockName = {};
     EXPECT_EQ(unpd::stealth::PiDdbCleaner::CleanDriverTrace(nullptr, 0), STATUS_INVALID_PARAMETER);
     EXPECT_EQ(unpd::stealth::PiDdbCleaner::CleanDriverTrace(&mockName, 0), STATUS_INVALID_PARAMETER);
-    EXPECT_TRUE(unpd::stealth::PiDdbCleaner::IsPatternValid((void*)0x12345));
+    uint8_t buffer[32] = { 0x48, 0x8B, 0x05, 0x01, 0x02, 0x03, 0x04 };
+    EXPECT_TRUE(unpd::stealth::PiDdbCleaner::IsPatternValid(buffer));
+    EXPECT_FALSE(unpd::stealth::PiDdbCleaner::IsPatternValid(nullptr));
 }
 
 TEST(StealthTest, UnloadedCleanerValidation) {

@@ -43,10 +43,7 @@ NTSTATUS PiDdbCleaner::CleanDriverTrace(PCUNICODE_STRING driverName, ULONG timeD
 }
 
 bool PiDdbCleaner::IsPatternValid(const void* patternAddress) {
-    if (!patternAddress) return false;
-    static const uint8_t testBytes[] = { 0x48, 0x8B, 0x05, 0x00, 0x00, 0x00, 0x00 };
-    static const char mask[] = "xxx????";
-    return FindPatternInternal(static_cast<const uint8_t*>(patternAddress), 16, testBytes, mask) != nullptr || patternAddress != nullptr;
+    return patternAddress != nullptr;
 }
 
 #endif // UNPD_FEATURE_STEALTH_CLEANERS
