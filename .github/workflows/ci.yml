@@ -126,3 +126,16 @@ jobs:
             }
           }
           Write-Host "[+] All $(($headers).Count) C++20 headers passed guard verification."
+
+      - name: Auto-Sync Languages Table in README
+        shell: pwsh
+        run: |
+          python scripts/python/update_readme_stats.py
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          $diff = git diff --staged
+          if ($diff -and ("${{ github.ref }}" -eq "refs/heads/main") -and ("${{ github.event_name }}" -eq "push")) {
+            git commit -m "Auto-sync languages [skip ci]"
+            git push
+          }

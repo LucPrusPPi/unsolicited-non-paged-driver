@@ -14,6 +14,7 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 from bench_latency import LatencyStats
 from fuzz_runner import FuzzGenerator, run_fuzzing
 from verify_pe import PEInspector
+from update_readme_stats import scan_repository, update_readme
 
 class TestLatencyStats(unittest.TestCase):
     def test_empty_samples(self):
@@ -54,6 +55,17 @@ class TestFuzzGenerator(unittest.TestCase):
 
     def test_fuzz_runner_cycles(self):
         rc = run_fuzzing(100)
+        self.assertEqual(rc, 0)
+
+class TestReadmeStats(unittest.TestCase):
+    def test_scan_repository_and_update(self):
+        stats = scan_repository()
+        self.assertIn("C++", stats)
+        self.assertIn("Lua", stats)
+        self.assertGreater(stats["Lua"]["files"], 0)
+        self.assertGreater(stats["C++"]["bytes"], 1000)
+
+        rc = update_readme()
         self.assertEqual(rc, 0)
 
 if __name__ == "__main__":

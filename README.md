@@ -161,16 +161,18 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 
 ## Languages
 
+<!-- LANGUAGES_START -->
 | Language | Share | Files | Code Lines |
 |---|---|---|---|
-| C++ | 56.8% | 33 | 4,765 |
-| Python | 11.2% | 5 | 610 |
-| Lua | 10.5% | 7 | 797 |
-| Assembly | 5.3% | 1 | 515 |
-| PowerShell | 5.1% | 5 | 324 |
-| Shell | 4.8% | 7 | 345 |
-| CMake | 3.6% | 1 | 272 |
-| C | 2.8% | 1 | 217 |
+| C++ | 57.9% | 33 | 4,765 |
+| Lua | 10.7% | 7 | 797 |
+| Python |  9.5% | 7 | 675 |
+| Assembly |  5.3% | 1 | 515 |
+| PowerShell |  5.2% | 5 | 324 |
+| Shell |  4.9% | 7 | 345 |
+| CMake |  3.7% | 1 | 272 |
+| C |  2.8% | 1 | 217 |
+<!-- LANGUAGES_END -->
 
 ---
 
@@ -245,6 +247,7 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 │   │   ├── driver_ctl.py       # Win32 SCM service manager via ctypes
 │   │   ├── fuzz_runner.py      # Boundary and randomized kernel IOCTL fuzzer
 │   │   ├── init_template.py    # 1-click template customizer and project renamer
+│   │   ├── update_readme_stats.py # Automated repository language statistics updater
 │   │   └── verify_pe.py        # PE Authenticode, CFG, ASLR, and DEP inspector
 │   └── lua/                    # Lua automation, simulation & testing engine
 │       ├── benchmark_suite.lua # Latency percentile profiler & telemetry
