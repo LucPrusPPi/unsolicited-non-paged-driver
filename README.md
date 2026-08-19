@@ -170,6 +170,7 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 ├── docs/                       # Technical documentation
 │   ├── ARCHITECTURE.md         # Kernel internals, MMU paging, and memory lifecycle
 │   ├── IOCTL_PROTOCOL.md       # Complete 11-opcode IOCTL specification
+│   ├── LANGUAGES.md            # Codebase language metrics and distribution breakdown
 │   └── VM_SETUP.md             # VMWare testmode and WinDbg guide
 ├── include/unpd/               # Public and kernel headers
 │   ├── client.hpp              # Public C++20 Usermode Client SDK
