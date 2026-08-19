@@ -28,10 +28,10 @@ NTSTATUS SharedMemBackend::PollAndDispatch() {
     if (g_sharedPage->Opcode != 0 && g_sharedPage->Status == 0) {
         switch (g_sharedPage->Opcode) {
             case 1: // PING
-                g_sharedPage->Status = STATUS_SUCCESS;
+                g_sharedPage->Status = static_cast<ULONG>(STATUS_SUCCESS);
                 break;
             default:
-                g_sharedPage->Status = STATUS_NOT_SUPPORTED;
+                g_sharedPage->Status = static_cast<ULONG>(STATUS_NOT_SUPPORTED);
                 break;
         }
         UnpdMemoryFence();

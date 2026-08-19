@@ -3,6 +3,43 @@
 
 #ifdef _KERNEL_MODE
 #include <ntddk.h>
+
+extern "C" {
+    NTKERNELAPI NTSTATUS PsLookupThreadByThreadId(HANDLE ThreadId, PETHREAD *Thread);
+
+    typedef enum _KAPC_ENVIRONMENT {
+        OriginalApcEnvironment,
+        AttachedApcEnvironment,
+        CurrentApcEnvironment,
+        InsertApcEnvironment
+    } KAPC_ENVIRONMENT;
+
+    typedef VOID (*PKNORMAL_ROUTINE)(PVOID NormalContext, PVOID SystemArgument1, PVOID SystemArgument2);
+    typedef VOID (*PKKERNEL_ROUTINE)(PKAPC Apc, PKNORMAL_ROUTINE *NormalRoutine, PVOID *NormalContext, PVOID *SystemArgument1, PVOID *SystemArgument2);
+    typedef VOID (*PKRUNDOWN_ROUTINE)(PKAPC Apc);
+
+    NTKERNELAPI VOID KeInitializeApc(
+        PRKAPC Apc,
+        PRKTHREAD Thread,
+        KAPC_ENVIRONMENT Environment,
+        PKKERNEL_ROUTINE KernelRoutine,
+        PKRUNDOWN_ROUTINE RundownRoutine,
+        PKNORMAL_ROUTINE NormalRoutine,
+        KPROCESSOR_MODE ProcessorMode,
+        PVOID NormalContext
+    );
+
+    NTKERNELAPI BOOLEAN KeInsertQueueApc(
+        PRKAPC Apc,
+        PVOID SystemArgument1,
+        PVOID SystemArgument2,
+        KPRIORITY Increment
+    );
+}
+
+static VOID KernelApcCleanup(PKAPC apc, PKNORMAL_ROUTINE*, PVOID*, PVOID*, PVOID*) {
+    ExFreePoolWithTag(apc, UNPD_POOL_TAG);
+}
 #endif
 
 namespace unpd::exec {
@@ -34,9 +71,7 @@ NTSTATUS KernelApc::QueueUserApc(HANDLE targetThreadId, PVOID userRoutine, PVOID
         apc,
         reinterpret_cast<PKTHREAD>(thread),
         OriginalApcEnvironment,
-        [](PKAPC apcPtr, PKNORMAL_ROUTINE*, PVOID*, PVOID*, PVOID*) {
-            ExFreePoolWithTag(apcPtr, UNPD_POOL_TAG);
-        },
+        KernelApcCleanup,
         nullptr,
         reinterpret_cast<PKNORMAL_ROUTINE>(userRoutine),
         UserMode,
