@@ -1,0 +1,9 @@
+# GitHub Linguist language detection overrides
+*.cpp linguist-language=C++
+*.hpp linguist-language=C++
+*.h linguist-language=C
+*.asm linguist-language=Assembly
+*.py linguist-language=Python
+*.ps1 linguist-language=PowerShell
+*.cmake linguist-language=CMake
+CMakeLists.txt linguist-language=CMake
