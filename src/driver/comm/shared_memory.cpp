@@ -74,7 +74,7 @@ NTSTATUS SharedMemoryChannel::DispatchSingle(
 
         case UNPD_OPCODE_SWAP_BUFFERS: {
             channel->ActiveBufferIndex ^= 1;
-            channel->TotalSwaps++;
+            channel->TotalSwaps = channel->TotalSwaps + 1;
             UnpdFastSwapBarrier(nullptr, nullptr);
             resp.Status = STATUS_SUCCESS;
             resp.PayloadSize = sizeof(uint32_t);
@@ -85,12 +85,12 @@ NTSTATUS SharedMemoryChannel::DispatchSingle(
 
         default: {
             resp.Status = static_cast<uint32_t>(STATUS_NOT_SUPPORTED);
-            channel->ErrorCount++;
+            channel->ErrorCount = channel->ErrorCount + 1;
             break;
         }
     }
 
-    channel->TotalProcessed++;
+    channel->TotalProcessed = channel->TotalProcessed + 1;
     return STATUS_SUCCESS;
 }
 
@@ -138,7 +138,7 @@ NTSTATUS SharedMemoryChannel::SwapDoubleBuffer(PVOID sharedPageVa) noexcept {
 
     auto* header = static_cast<SharedChannelHeader*>(sharedPageVa);
     header->ActiveBufferIndex ^= 1;
-    header->TotalSwaps++;
+    header->TotalSwaps = header->TotalSwaps + 1;
     UnpdFastSwapBarrier(nullptr, nullptr);
     return STATUS_SUCCESS;
 }
