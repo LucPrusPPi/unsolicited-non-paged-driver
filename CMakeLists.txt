@@ -64,6 +64,7 @@ if(EXISTS "${WDK_INC_KM}")
         src/driver/memory_manager.cpp
         src/driver/page_engine.cpp
         src/driver/memory/universal_memory.cpp
+        src/driver/mmu/paging_engine.cpp
         src/driver/kernel_asm.asm
         src/driver/unpd.rc
     )
@@ -191,6 +192,7 @@ if(UNPD_BUILD_TESTS)
         src/tests/gtest_page_engine.cpp
         src/tests/gtest_fuzzing.cpp
         src/tests/gtest_stress.cpp
+        src/tests/gtest_mmu.cpp
     )
 
     add_executable(unpd_tests ${TEST_SOURCES})
