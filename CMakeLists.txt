@@ -203,6 +203,7 @@ if(UNPD_BUILD_TESTS)
         src/tests/test_stealth.cpp
         src/tests/test_cr3_walker.cpp
         src/tests/test_virtual_mmu.cpp
+        src/tests/test_kstd.cpp
         src/tests/emulator/virtual_mmu.cpp
         src/driver/kernel_asm.asm
     )
