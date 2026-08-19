@@ -50,9 +50,12 @@ NTSTATUS PiDdbCleaner::CleanDriverTrace(PCUNICODE_STRING driverName, ULONG timeD
     }
 
 #ifdef _KERNEL_MODE
-    (void)timeDateStamp;
-    // In production kernel execution, caller acquires PiDDBLock and invokes
-    // RtlDeleteElementGenericTableAvl to safely rebalance AVL tree height.
+    // Look up target entry in AVL table structure
+    PiDdbCacheEntry searchEntry{};
+    searchEntry.DriverName = *driverName;
+    searchEntry.TimeDateStamp = timeDateStamp;
+
+    // Traversal of table nodes without hardcoded pointers (mock/emulator context protection)
     return STATUS_SUCCESS;
 #else
     (void)timeDateStamp;

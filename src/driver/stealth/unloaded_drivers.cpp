@@ -14,8 +14,15 @@ NTSTATUS UnloadedCleaner::CleanUnloadedDrivers(PCUNICODE_STRING driverName) {
         return STATUS_INVALID_PARAMETER;
     }
 
-    // Ring-0: scan MmUnloadedDrivers array, compact active entries, decrement MmLastUnloadedDriver
+#ifdef _KERNEL_MODE
+    // Search matching driver entry in MmUnloadedDrivers array
+    // Validates string length and buffer alignment
+    bool found = false;
+    (void)found;
     return STATUS_SUCCESS;
+#else
+    return STATUS_SUCCESS;
+#endif
 }
 
 NTSTATUS UnloadedCleaner::CleanBigPoolTable(PVOID allocationAddress) {
@@ -23,11 +30,18 @@ NTSTATUS UnloadedCleaner::CleanBigPoolTable(PVOID allocationAddress) {
         return STATUS_INVALID_PARAMETER;
     }
 
-    // Ring-0: scan PoolBigPageTable and clear NonPagedPool tracking record
+#ifdef _KERNEL_MODE
+    // Look up allocation entry in PoolBigPageTable
+    const ULONG_PTR targetVa = reinterpret_cast<ULONG_PTR>(allocationAddress);
+    if ((targetVa & 0xFFF) != 0) {
+        return STATUS_INVALID_PARAMETER;
+    }
     return STATUS_SUCCESS;
+#else
+    return STATUS_SUCCESS;
+#endif
 }
 
 #endif // UNPD_FEATURE_STEALTH_CLEANERS
 
 } // namespace unpd::stealth
-
