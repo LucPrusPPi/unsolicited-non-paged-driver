@@ -158,3 +158,62 @@ TEST_F(VirtualMmuTest, TlbHitAndInvlpgVerification) {
     EXPECT_TRUE(trans3.has_value());
     EXPECT_EQ(mmu.GetTlbMisses(), initialMisses + 2);
 }
+
+TEST_F(VirtualMmuTest, HigherHalfCanonicalTranslation) {
+    const uint64_t kernelVa = 0xFFFF888012345000ULL;
+    const uint64_t pa = mmu.AllocatePhysicalPage();
+    ASSERT_NE(pa, 0ULL);
+
+    EXPECT_TRUE(mmu.MapPage(cr3, kernelVa, pa, PageFlags::Present | PageFlags::ReadWrite));
+
+    auto translation = mmu.Translate(cr3, kernelVa, false, false, false);
+    ASSERT_TRUE(translation.has_value());
+    EXPECT_EQ(translation.value(), pa);
+}
+
+TEST_F(VirtualMmuTest, UserSupervisorPrivilegeCheck) {
+    const uint64_t supervisorVa = 0x00007FFF30000000ULL;
+    const uint64_t pa = mmu.AllocatePhysicalPage();
+    ASSERT_NE(pa, 0ULL);
+
+    // Map supervisor-only (without UserSupervisor flag)
+    EXPECT_TRUE(mmu.MapPage(cr3, supervisorVa, pa, PageFlags::Present | PageFlags::ReadWrite));
+
+    // Kernel mode read succeeds
+    auto kernelTrans = mmu.Translate(cr3, supervisorVa, false, false, false);
+    EXPECT_TRUE(kernelTrans.has_value());
+
+    // User mode read triggers #PF protection fault
+    auto userTrans = mmu.Translate(cr3, supervisorVa, false, true, false);
+    ASSERT_FALSE(userTrans.has_value());
+    EXPECT_EQ(userTrans.error().ErrorCode.Present, 1);
+    EXPECT_EQ(userTrans.error().ErrorCode.User, 1);
+}
+
+TEST_F(VirtualMmuTest, MultiPageContiguousBufferChunking) {
+    const uint64_t vaStart = 0x00007FFF50000000ULL;
+    const size_t numPages = 3;
+    std::vector<uint64_t> pas;
+    for (size_t i = 0; i < numPages; ++i) {
+        uint64_t pa = mmu.AllocatePhysicalPage();
+        ASSERT_NE(pa, 0ULL);
+        pas.push_back(pa);
+        EXPECT_TRUE(mmu.MapPage(cr3, vaStart + (i * 4096), pa, PageFlags::Present | PageFlags::ReadWrite));
+    }
+
+    // Write a 10,000 byte buffer that spans across all 3 pages
+    std::vector<uint8_t> sendData(10000);
+    for (size_t i = 0; i < sendData.size(); ++i) {
+        sendData[i] = static_cast<uint8_t>((i * 7 + 13) & 0xFF);
+    }
+
+    size_t written = 0;
+    EXPECT_TRUE(mmu.WriteVirtual(cr3, vaStart + 500, sendData.data(), sendData.size(), &written));
+    EXPECT_EQ(written, sendData.size());
+
+    std::vector<uint8_t> recvData(10000, 0);
+    size_t bytesRead = 0;
+    EXPECT_TRUE(mmu.ReadVirtual(cr3, vaStart + 500, recvData.data(), recvData.size(), &bytesRead));
+    EXPECT_EQ(bytesRead, sendData.size());
+    EXPECT_EQ(sendData, recvData);
+}
