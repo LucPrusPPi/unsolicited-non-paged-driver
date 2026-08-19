@@ -4,8 +4,8 @@
 #define UNPD_PAGING_ENGINE_HPP
 
 #include "unpd/mmu/paging_types.hpp"
-#include "unpd/kstd/kstd_expected.hpp"
-#include "unpd/kstd/kstd_span.hpp"
+#include "unpd/kstd/expected.hpp"
+#include "unpd/kstd/span.hpp"
 
 #ifdef _KERNEL_MODE
 #include <ntddk.h>

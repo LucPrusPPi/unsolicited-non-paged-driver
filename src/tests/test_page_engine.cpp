@@ -1,98 +1,96 @@
+#include <gtest/gtest.h>
 #include "test_client.hpp"
-#include <vector>
-#include <functional>
-#include <string>
-#include <cstring>
 
-struct TestCase {
-    std::string name;
-    std::function<bool(unpd::test::DriverClient&)> fn;
+class PageEngineTest : public ::testing::Test {
+protected:
+    unpd::test::DriverClient client;
 };
 
-void RegisterPageEngineTests(std::vector<TestCase>& tests) {
-    tests.push_back({
-        "PageEngine_MapSharedMemory_ValidAddress",
-        [](unpd::test::DriverClient& client) -> bool {
-            uint64_t session = 0;
-            void* userAddr = nullptr;
-            uint64_t totalBytes = 0;
-            uint32_t bufSize = 0;
+TEST_F(PageEngineTest, MapSharedMemory_ValidAddress) {
+    uint64_t session = 0;
+    void* userAddr = nullptr;
+    uint64_t totalBytes = 0;
+    uint32_t bufSize = 0;
 
-            if (!client.mapSharedMemory(16, session, userAddr, totalBytes, bufSize)) return false;
-            if (session == 0 || userAddr == nullptr || totalBytes != 16 * 4096) return false;
+    EXPECT_TRUE(client.mapSharedMemory(16, session, userAddr, totalBytes, bufSize));
+    EXPECT_NE(session, 0ULL);
+    EXPECT_NE(userAddr, nullptr);
+    EXPECT_EQ(totalBytes, 16u * 4096u);
+    EXPECT_EQ(bufSize, 8u * 4096u);
 
-            return client.unmapSharedMemory(session);
-        }
-    });
+    EXPECT_TRUE(client.unmapSharedMemory(session));
+}
 
-    tests.push_back({
-        "PageEngine_WriteRead_SharedMemoryDirect",
-        [](unpd::test::DriverClient& client) -> bool {
-            uint64_t session = 0;
-            void* userAddr = nullptr;
-            uint64_t totalBytes = 0;
-            uint32_t bufSize = 0;
+TEST_F(PageEngineTest, WriteRead_DirectSharedMemory) {
+    uint64_t session = 0;
+    void* userAddr = nullptr;
+    uint64_t totalBytes = 0;
+    uint32_t bufSize = 0;
 
-            if (!client.mapSharedMemory(8, session, userAddr, totalBytes, bufSize)) return false;
+    ASSERT_TRUE(client.mapSharedMemory(8, session, userAddr, totalBytes, bufSize));
+    ASSERT_NE(userAddr, nullptr);
 
-            auto* ptr = static_cast<uint8_t*>(userAddr);
-            for (size_t i = 0; i < totalBytes; ++i) {
-                ptr[i] = static_cast<uint8_t>(i & 0xFF);
-            }
+    auto* ptr = static_cast<uint8_t*>(userAddr);
+    for (size_t i = 0; i < totalBytes; ++i) {
+        ptr[i] = static_cast<uint8_t>((i * 7) & 0xFF);
+    }
 
-            bool match = true;
-            for (size_t i = 0; i < totalBytes; ++i) {
-                if (ptr[i] != static_cast<uint8_t>(i & 0xFF)) {
-                    match = false;
-                    break;
-                }
-            }
+    for (size_t i = 0; i < totalBytes; ++i) {
+        EXPECT_EQ(ptr[i], static_cast<uint8_t>((i * 7) & 0xFF));
+    }
 
-            client.unmapSharedMemory(session);
-            return match;
-        }
-    });
+    EXPECT_TRUE(client.unmapSharedMemory(session));
+}
 
-    tests.push_back({
-        "PageEngine_AtomicDoubleBufferSwap",
-        [](unpd::test::DriverClient& client) -> bool {
-            uint64_t session = 0;
-            void* userAddr = nullptr;
-            uint64_t totalBytes = 0;
-            uint32_t bufSize = 0;
+TEST_F(PageEngineTest, DoubleBufferSwap_Sequence) {
+    uint64_t session = 0;
+    void* userAddr = nullptr;
+    uint64_t totalBytes = 0;
+    uint32_t bufSize = 0;
 
-            if (!client.mapSharedMemory(16, session, userAddr, totalBytes, bufSize)) return false;
+    ASSERT_TRUE(client.mapSharedMemory(16, session, userAddr, totalBytes, bufSize));
 
-            uint32_t active = 0;
-            uint32_t standby = 0;
-            uint64_t swaps = 0;
+    uint32_t active = 0;
+    uint32_t standby = 0;
+    uint64_t swaps = 0;
 
-            for (int i = 0; i < 100; ++i) {
-                if (!client.swapBuffers(session, active, standby, swaps)) {
-                    client.unmapSharedMemory(session);
-                    return false;
-                }
-                if (active == standby) {
-                    client.unmapSharedMemory(session);
-                    return false;
-                }
-            }
+    for (int i = 0; i < 50; ++i) {
+        ASSERT_TRUE(client.swapBuffers(session, active, standby, swaps));
+        EXPECT_NE(active, standby);
+        EXPECT_GT(swaps, 0ULL);
+    }
 
-            return client.unmapSharedMemory(session);
-        }
-    });
+    EXPECT_TRUE(client.unmapSharedMemory(session));
+}
 
-    tests.push_back({
-        "PageEngine_SlabAllocAndFree_AllClasses",
-        [](unpd::test::DriverClient& client) -> bool {
-            for (uint32_t cls = 0; cls < 4; ++cls) {
-                uint64_t handle = 0;
-                uint32_t blockSize = 0;
-                if (!client.slabAlloc(cls, handle, blockSize)) return false;
-                if (handle == 0 || blockSize == 0) return false;
-                if (!client.slabFree(handle, blockSize)) return false;
-            }
-            return true;
-        }
-    });
+TEST_F(PageEngineTest, SlabAlloc_Class64B) {
+    uint64_t handle = 0;
+    uint32_t blockSize = 0;
+    EXPECT_TRUE(client.slabAlloc(0, handle, blockSize));
+    EXPECT_EQ(blockSize, 64u);
+    EXPECT_TRUE(client.slabFree(handle, blockSize));
+}
+
+TEST_F(PageEngineTest, SlabAlloc_Class256B) {
+    uint64_t handle = 0;
+    uint32_t blockSize = 0;
+    EXPECT_TRUE(client.slabAlloc(1, handle, blockSize));
+    EXPECT_EQ(blockSize, 256u);
+    EXPECT_TRUE(client.slabFree(handle, blockSize));
+}
+
+TEST_F(PageEngineTest, SlabAlloc_Class1024B) {
+    uint64_t handle = 0;
+    uint32_t blockSize = 0;
+    EXPECT_TRUE(client.slabAlloc(2, handle, blockSize));
+    EXPECT_EQ(blockSize, 1024u);
+    EXPECT_TRUE(client.slabFree(handle, blockSize));
+}
+
+TEST_F(PageEngineTest, SlabAlloc_Class4096B) {
+    uint64_t handle = 0;
+    uint32_t blockSize = 0;
+    EXPECT_TRUE(client.slabAlloc(3, handle, blockSize));
+    EXPECT_EQ(blockSize, 4096u);
+    EXPECT_TRUE(client.slabFree(handle, blockSize));
 }

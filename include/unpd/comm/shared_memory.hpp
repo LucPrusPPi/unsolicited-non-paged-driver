@@ -1,14 +1,14 @@
 #pragma once
 
-#ifndef UNPD_COMM_BACKEND_SHARED_MEM_HPP
-#define UNPD_COMM_BACKEND_SHARED_MEM_HPP
+#ifndef UNPD_COMM_SHARED_MEMORY_HPP
+#define UNPD_COMM_SHARED_MEMORY_HPP
 
 #include <unpd/common.h>
 #include <unpd/config.hpp>
 
 namespace unpd::comm {
 
-struct SharedMemHeader {
+struct SharedMemoryHeader {
     volatile ULONG Magic;
     volatile ULONG Opcode;
     volatile ULONG Status;
@@ -16,12 +16,16 @@ struct SharedMemHeader {
     UCHAR Payload[4096];
 };
 
-class SharedMemBackend {
+using SharedMemHeader = SharedMemoryHeader;
+
+class SharedMemoryChannel {
 public:
     static NTSTATUS Initialize(PVOID sharedPageVa);
     static NTSTATUS PollAndDispatch();
 };
 
+using SharedMemBackend = SharedMemoryChannel;
+
 } // namespace unpd::comm
 
-#endif // UNPD_COMM_BACKEND_SHARED_MEM_HPP
+#endif // UNPD_COMM_SHARED_MEMORY_HPP

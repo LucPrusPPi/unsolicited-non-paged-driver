@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef UNPD_STEALTH_PIDDB_CLEANER_HPP
-#define UNPD_STEALTH_PIDDB_CLEANER_HPP
+#ifndef UNPD_STEALTH_PIDDB_HPP
+#define UNPD_STEALTH_PIDDB_HPP
 
 #include <unpd/common.h>
 #include <unpd/config.hpp>
@@ -35,4 +35,4 @@ public:
 
 } // namespace unpd::stealth
 
-#endif // UNPD_STEALTH_PIDDB_CLEANER_HPP
+#endif // UNPD_STEALTH_PIDDB_HPP

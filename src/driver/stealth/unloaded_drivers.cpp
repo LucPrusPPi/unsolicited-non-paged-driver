@@ -1,5 +1,5 @@
 #include <unpd/common.h>
-#include <unpd/stealth/unloaded_cleaner.hpp>
+#include <unpd/stealth/unloaded_drivers.hpp>
 
 #ifdef _KERNEL_MODE
 #include <ntddk.h>

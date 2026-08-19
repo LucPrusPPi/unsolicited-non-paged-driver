@@ -1,5 +1,5 @@
 #include <unpd/common.h>
-#include <unpd/stealth/piddb_cleaner.hpp>
+#include <unpd/stealth/piddb.hpp>
 
 #ifdef _KERNEL_MODE
 #include <ntddk.h>

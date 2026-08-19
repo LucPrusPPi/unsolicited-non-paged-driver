@@ -67,10 +67,10 @@ if(EXISTS "${WDK_INC_KM}")
         src/driver/mmu/paging_engine.cpp
         src/driver/mmu/physical_memory.cpp
         src/driver/mmu/cr3_walker.cpp
-        src/driver/stealth/piddb_cleaner.cpp
-        src/driver/stealth/unloaded_cleaner.cpp
-        src/driver/comm/backend_shared_mem.cpp
-        src/driver/exec/kernel_apc.cpp
+        src/driver/stealth/piddb.cpp
+        src/driver/stealth/unloaded_drivers.cpp
+        src/driver/comm/shared_memory.cpp
+        src/driver/exec/apc.cpp
         src/driver/kernel_asm.asm
         src/driver/unpd.rc
     )
@@ -194,20 +194,20 @@ if(UNPD_BUILD_TESTS)
     FetchContent_MakeAvailable(googletest)
 
     set(TEST_SOURCES
-        src/tests/test_gtest_main.cpp
-        src/tests/gtest_ioctl.cpp
-        src/tests/gtest_page_engine.cpp
-        src/tests/gtest_fuzzing.cpp
-        src/tests/gtest_stress.cpp
-        src/tests/gtest_mmu.cpp
-        src/tests/gtest_stealth.cpp
-        src/tests/gtest_cr3_walker.cpp
+        src/tests/main.cpp
+        src/tests/test_ioctl.cpp
+        src/tests/test_page_engine.cpp
+        src/tests/test_fuzzing.cpp
+        src/tests/test_stress.cpp
+        src/tests/test_mmu.cpp
+        src/tests/test_stealth.cpp
+        src/tests/test_cr3_walker.cpp
         src/driver/mmu/physical_memory.cpp
         src/driver/mmu/cr3_walker.cpp
-        src/driver/stealth/piddb_cleaner.cpp
-        src/driver/stealth/unloaded_cleaner.cpp
-        src/driver/comm/backend_shared_mem.cpp
-        src/driver/exec/kernel_apc.cpp
+        src/driver/stealth/piddb.cpp
+        src/driver/stealth/unloaded_drivers.cpp
+        src/driver/comm/shared_memory.cpp
+        src/driver/exec/apc.cpp
         src/driver/kernel_asm.asm
     )
 

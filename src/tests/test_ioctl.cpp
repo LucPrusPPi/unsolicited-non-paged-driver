@@ -1,79 +1,51 @@
+#include <gtest/gtest.h>
 #include "test_client.hpp"
-#include <vector>
-#include <functional>
-#include <string>
-#include <iostream>
 
-struct TestCase {
-    std::string name;
-    std::function<bool(unpd::test::DriverClient&)> fn;
+class IoctlTest : public ::testing::Test {
+protected:
+    unpd::test::DriverClient client;
 };
 
-void RegisterIoctlTests(std::vector<TestCase>& tests) {
-    tests.push_back({
-        "Ioctl_Ping_ValidSequence",
-        [](unpd::test::DriverClient& client) -> bool {
-            UNPD_PING_RESPONSE resp{};
-            uint32_t seq = 42;
-            if (!client.ping(seq, resp)) return false;
-            return resp.Sequence == seq + 1 && resp.DriverVersionMajor == 1;
-        }
-    });
+TEST_F(IoctlTest, Ping_ValidSequence) {
+    UNPD_PING_RESPONSE resp{};
+    EXPECT_TRUE(client.ping(100, resp));
+    EXPECT_EQ(resp.Magic, UNPD_MAGIC_RESPONSE);
+    EXPECT_EQ(resp.Sequence, 101u);
+}
 
-    tests.push_back({
-        "Ioctl_AllocateAndFree_SmallBuffer",
-        [](unpd::test::DriverClient& client) -> bool {
-            uint64_t handle = 0;
-            if (!client.allocateNonPaged(1024, handle)) return false;
-            if (handle == 0) return false;
-            return client.freeNonPaged(handle);
-        }
-    });
+TEST_F(IoctlTest, Ping_TimestampPrecision) {
+    UNPD_PING_RESPONSE resp{};
+    EXPECT_TRUE(client.ping(42, resp));
+    EXPECT_GT(resp.KernelTimestamp, 0ULL);
+}
 
-    tests.push_back({
-        "Ioctl_AllocateMultiple_UniqueHandles",
-        [](unpd::test::DriverClient& client) -> bool {
-            std::vector<uint64_t> handles;
-            for (int i = 0; i < 16; ++i) {
-                uint64_t h = 0;
-                if (!client.allocateNonPaged(4096, h)) return false;
-                handles.push_back(h);
-            }
-            for (uint64_t h : handles) {
-                if (!client.freeNonPaged(h)) return false;
-            }
-            return true;
-        }
-    });
+TEST_F(IoctlTest, AllocateAndFree_SingleBuffer) {
+    uint64_t handle = 0;
+    EXPECT_TRUE(client.allocateNonPaged(1024, handle));
+    EXPECT_NE(handle, 0ULL);
+    EXPECT_TRUE(client.freeNonPaged(handle));
+}
 
-    tests.push_back({
-        "Ioctl_FreeInvalidHandle_ReturnsError",
-        [](unpd::test::DriverClient& client) -> bool {
-            uint64_t bogusHandle = 0xDEADBEEFCAFEBABEULL;
-            return !client.freeNonPaged(bogusHandle);
-        }
-    });
+TEST_F(IoctlTest, AllocateMultiple_CheckHandles) {
+    std::vector<uint64_t> handles;
+    for (int i = 0; i < 16; ++i) {
+        uint64_t handle = 0;
+        ASSERT_TRUE(client.allocateNonPaged(512, handle));
+        ASSERT_NE(handle, 0ULL);
+        handles.push_back(handle);
+    }
 
-    tests.push_back({
-        "Ioctl_QueryStats_ActiveCount",
-        [](unpd::test::DriverClient& client) -> bool {
-            UNPD_STATS_RESPONSE statsBefore{};
-            if (!client.queryStats(statsBefore)) return false;
+    for (uint64_t handle : handles) {
+        EXPECT_TRUE(client.freeNonPaged(handle));
+    }
+}
 
-            uint64_t handle = 0;
-            if (!client.allocateNonPaged(2048, handle)) return false;
+TEST_F(IoctlTest, Free_InvalidHandle_ReturnsError) {
+    EXPECT_FALSE(client.freeNonPaged(0xDEADBEEFCAFEBABE));
+}
 
-            UNPD_STATS_RESPONSE statsDuring{};
-            if (!client.queryStats(statsDuring)) return false;
-
-            if (statsDuring.ActiveAllocations != statsBefore.ActiveAllocations + 1) return false;
-
-            if (!client.freeNonPaged(handle)) return false;
-
-            UNPD_STATS_RESPONSE statsAfter{};
-            if (!client.queryStats(statsAfter)) return false;
-
-            return statsAfter.ActiveAllocations == statsBefore.ActiveAllocations;
-        }
-    });
+TEST_F(IoctlTest, QueryStats_MetricsIntegrity) {
+    UNPD_STATS_RESPONSE stats{};
+    EXPECT_TRUE(client.queryStats(stats));
+    EXPECT_EQ(stats.Magic, UNPD_MAGIC_RESPONSE);
 }

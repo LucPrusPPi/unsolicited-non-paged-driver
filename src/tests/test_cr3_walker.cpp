@@ -3,8 +3,8 @@
 #include <unpd/mmu/physical_memory.hpp>
 #include <unpd/mmu/cr3_walker.hpp>
 #include <unpd/mmu/pte_remapper.hpp>
-#include <unpd/exec/kernel_apc.hpp>
-#include <unpd/comm/backend_shared_mem.hpp>
+#include <unpd/exec/apc.hpp>
+#include <unpd/comm/shared_memory.hpp>
 
 TEST(MmuAdvancedTest, PhysicalMemoryValidation) {
     char buf[16] = {};

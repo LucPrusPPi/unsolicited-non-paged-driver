@@ -164,14 +164,14 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 <!-- LANGUAGES_START -->
 | Language | Share | Files | Code Lines |
 |---|---|---|---|
-| C++ | 61.6% | 48 | 5,771 |
-| Lua |  9.4% | 7 | 797 |
-| Python |  8.5% | 7 | 687 |
-| Assembly |  5.5% | 1 | 624 |
-| PowerShell |  4.6% | 5 | 324 |
-| Shell |  4.3% | 7 | 345 |
-| CMake |  3.4% | 1 | 286 |
-| C |  2.7% | 1 | 244 |
+| C++ | 59.7% | 43 | 5,359 |
+| Lua |  9.9% | 7 | 797 |
+| Python |  9.0% | 7 | 687 |
+| Assembly |  5.7% | 1 | 624 |
+| PowerShell |  4.8% | 5 | 324 |
+| Shell |  4.5% | 7 | 345 |
+| CMake |  3.6% | 1 | 286 |
+| C |  2.9% | 1 | 244 |
 <!-- LANGUAGES_END -->
 
 ---
@@ -198,16 +198,16 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 │   ├── page_engine.hpp         # Zero-copy shared memory and slab cache interfaces
 │   ├── security.hpp            # User buffer validation helpers
 │   ├── comm/                   # Stealth Communication Subsystem
-│   │   └── backend_shared_mem.hpp # Lockless shared memory polling backend
+│   │   └── shared_memory.hpp   # Lockless shared memory polling backend
 │   ├── exec/                   # Execution & Injection Primitives
-│   │   └── kernel_apc.hpp      # Asynchronous Kernel APC queueing
+│   │   └── apc.hpp             # Asynchronous Kernel APC queueing
 │   ├── stealth/                # Kernel Trace Scrubbers & Stealth Engine
-│   │   ├── piddb_cleaner.hpp   # PiDDBCacheTable & KernelHashBucketList scrubber
-│   │   └── unloaded_cleaner.hpp# MmUnloadedDrivers & PoolBigPageTable scrubber
+│   │   ├── piddb.hpp           # PiDDBCacheTable & KernelHashBucketList scrubber
+│   │   └── unloaded_drivers.hpp# MmUnloadedDrivers & PoolBigPageTable scrubber
 │   ├── kstd/                   # Freestanding Kernel C++20 STL
-│   │   ├── kstd_span.hpp       # Type-safe memory view span
-│   │   ├── kstd_expected.hpp   # Value-or-NTSTATUS error container
-│   │   └── kstd_unique_ptr.hpp # RAII smart pointer for tagged kernel pool
+│   │   ├── span.hpp            # Type-safe memory view span
+│   │   ├── expected.hpp        # Value-or-NTSTATUS error container
+│   │   └── unique_ptr.hpp      # RAII smart pointer for tagged kernel pool
 │   ├── memory/                 # Universal Multi-Strategy Memory Subsystem
 │   │   └── universal_memory.hpp# MDL, System Pool, Sections, and Slab caches
 │   └── mmu/                    # Hardware MMU & Paging Subsystem
@@ -217,7 +217,7 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 │       ├── cr3_walker.hpp      # Direct CR3 PML4 translation (no process attach)
 │       ├── pte_remapper.hpp    # Direct PTE attribute manipulation (RW/NX)
 │       └── descriptors.hpp     # IDT, GDT, TSS64, DR0..DR7, CR0, CR4, EFER, PAT
-
+│
 ├── src/
 │   ├── driver/                 # Kernel driver implementation (unpd.sys)
 │   │   ├── driver_entry.cpp    # DriverEntry and deterministic teardown
@@ -227,21 +227,21 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 │   │   ├── page_engine.cpp     # Physical MDL mapping and atomic buffer swap
 │   │   ├── kernel_asm.asm      # x64 MASM low-level hardware memory barriers & MMU
 │   │   ├── unpd.rc             # Windows PE version metadata
-│   │   ├── comm/               # Shared memory backend implementation
+│   │   ├── comm/               # Shared memory channel implementation
 │   │   ├── exec/               # Kernel APC injection implementation
 │   │   ├── stealth/            # PiDDB and Unloaded drivers scrubbers
 │   │   ├── memory/             # Universal memory implementations
 │   │   └── mmu/                # Physical memory & CR3 walker implementations
 │   └── tests/                  # GoogleTest test harness (unpd_tests.exe)
+│       ├── main.cpp            # GoogleTest entrypoint
 │       ├── test_client.hpp     # Forwards to public SDK client header
-│       ├── test_gtest_main.cpp # GTest entrypoint
-│       ├── gtest_ioctl.cpp     # IOCTL functional tests
-│       ├── gtest_page_engine.cpp# Shared memory and slab cache tests
-│       ├── gtest_fuzzing.cpp   # Adversarial boundary and buffer fuzzing tests
-│       ├── gtest_stress.cpp    # Multithreaded concurrency stress tests
-│       ├── gtest_mmu.cpp       # MMU bitfields, virtual address & kstd tests
-│       ├── gtest_stealth.cpp   # PiDDB & Unloaded drivers scrubber tests
-│       └── gtest_cr3_walker.cpp# Direct CR3 walker & physical memory tests
+│       ├── test_ioctl.cpp      # IOCTL contract test cases
+│       ├── test_page_engine.cpp# Shared memory & slab allocator tests
+│       ├── test_fuzzing.cpp    # Boundary fuzzing test suite
+│       ├── test_stress.cpp     # Multithreaded concurrency stress tests
+│       ├── test_mmu.cpp        # MMU bitfields & x64 descriptor tests
+│       ├── test_stealth.cpp    # DKOM scrubbers & table validation tests
+│       └── test_cr3_walker.cpp # Physical RAM & CR3 translation tests
 ├── scripts/                    # Automation and tooling scripts by language
 │   ├── bash/                   # POSIX Shell & Git Bash automation
 │   │   ├── Deploy-Driver.sh    # SCM driver service manager

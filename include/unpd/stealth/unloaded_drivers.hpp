@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef UNPD_STEALTH_UNLOADED_CLEANER_HPP
-#define UNPD_STEALTH_UNLOADED_CLEANER_HPP
+#ifndef UNPD_STEALTH_UNLOADED_DRIVERS_HPP
+#define UNPD_STEALTH_UNLOADED_DRIVERS_HPP
 
 #include <unpd/common.h>
 #include <unpd/config.hpp>
@@ -17,22 +17,26 @@ struct UnloadedDriverEntry {
     LARGE_INTEGER CurrentTime;
 };
 
-class UnloadedCleaner {
+class UnloadedDrivers {
 public:
     static NTSTATUS CleanUnloadedDrivers(PCUNICODE_STRING driverName);
     static NTSTATUS CleanBigPoolTable(PVOID allocationAddress);
 };
 
+using UnloadedCleaner = UnloadedDrivers;
+
 #else
 
-class UnloadedCleaner {
+class UnloadedDrivers {
 public:
     static NTSTATUS CleanUnloadedDrivers(PCUNICODE_STRING) { return STATUS_NOT_SUPPORTED; }
     static NTSTATUS CleanBigPoolTable(PVOID) { return STATUS_NOT_SUPPORTED; }
 };
 
+using UnloadedCleaner = UnloadedDrivers;
+
 #endif // UNPD_FEATURE_STEALTH_CLEANERS
 
 } // namespace unpd::stealth
 
-#endif // UNPD_STEALTH_UNLOADED_CLEANER_HPP
+#endif // UNPD_STEALTH_UNLOADED_DRIVERS_HPP

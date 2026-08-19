@@ -7,8 +7,8 @@
 #include <ntddk.h>
 #include "unpd/common.h"
 #include "unpd/kernel_raii.hpp"
-#include "unpd/kstd/kstd_span.hpp"
-#include "unpd/kstd/kstd_expected.hpp"
+#include "unpd/kstd/span.hpp"
+#include "unpd/kstd/expected.hpp"
 
 namespace unpd::memory {
 

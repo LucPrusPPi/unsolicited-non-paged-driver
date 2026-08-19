@@ -1,5 +1,5 @@
 #include <unpd/common.h>
-#include <unpd/comm/backend_shared_mem.hpp>
+#include <unpd/comm/shared_memory.hpp>
 #include <unpd/kernel_asm.hpp>
 
 namespace unpd::comm {

@@ -2,9 +2,9 @@
 #include "unpd/mmu/paging_types.hpp"
 #include "unpd/mmu/descriptors.hpp"
 #include "unpd/kernel_asm.hpp"
-#include "unpd/kstd/kstd_span.hpp"
-#include "unpd/kstd/kstd_expected.hpp"
-#include "unpd/kstd/kstd_unique_ptr.hpp"
+#include "unpd/kstd/span.hpp"
+#include "unpd/kstd/expected.hpp"
+#include "unpd/kstd/unique_ptr.hpp"
 
 using namespace unpd::mmu;
 using namespace unpd::kstd;
