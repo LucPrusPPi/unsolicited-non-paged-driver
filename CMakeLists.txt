@@ -139,6 +139,7 @@ if(EXISTS "${WDK_INC_KM}")
             $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-unused-variable>
             $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-microsoft-include>
             $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-c++11-narrowing>
+            $<$<COMPILE_LANGUAGE:CXX,C>:-Wno-unused-command-line-argument>
         )
     endif()
 
