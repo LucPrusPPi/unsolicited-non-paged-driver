@@ -167,7 +167,7 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 | C++ | 61.6% | 48 | 5,761 |
 | Lua |  9.4% | 7 | 797 |
 | Python |  8.5% | 7 | 687 |
-| Assembly |  5.4% | 1 | 620 |
+| Assembly |  5.5% | 1 | 624 |
 | PowerShell |  4.6% | 5 | 324 |
 | Shell |  4.3% | 7 | 345 |
 | CMake |  3.4% | 1 | 286 |
