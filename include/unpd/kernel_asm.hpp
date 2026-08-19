@@ -29,6 +29,8 @@ void UnpdCpuId(int32_t cpuInfo[4], int32_t functionId);
 // Architectural Control Registers (Ring-0)
 uint64_t UnpdReadCr0(void);
 void     UnpdWriteCr0(uint64_t value);
+void     UnpdDisableWriteProtect(void);
+void     UnpdEnableWriteProtect(void);
 uint64_t UnpdReadCr2(void);
 uint64_t UnpdReadCr3(void);
 void     UnpdWriteCr3(uint64_t value);
@@ -41,6 +43,24 @@ void     UnpdWriteCr8(uint64_t value);
 void UnpdInvlpg(const void* virtualAddress);
 void UnpdWbinvd(void);
 void UnpdFlushTlb(void);
+void UnpdClflush(const void* address);
+void UnpdClflushopt(const void* address);
+void UnpdClwb(const void* address);
+
+// CPU Execution & Interrupt Synchronization
+void UnpdPause(void);
+void UnpdCli(void);
+void UnpdSti(void);
+void UnpdSwapGs(void);
+void UnpdVmxoff(void);
+
+// Hardware I/O Port Access
+uint8_t  UnpdInByte(uint16_t port);
+void     UnpdOutByte(uint16_t port, uint8_t value);
+uint16_t UnpdInWord(uint16_t port);
+void     UnpdOutWord(uint16_t port, uint16_t value);
+uint32_t UnpdInDword(uint16_t port);
+void     UnpdOutDword(uint16_t port, uint32_t value);
 
 // Model-Specific Registers (Ring-0 MSR)
 uint64_t UnpdReadMsr(uint32_t msr);

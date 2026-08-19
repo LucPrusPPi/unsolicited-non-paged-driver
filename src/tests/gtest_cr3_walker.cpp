@@ -24,7 +24,26 @@ TEST(ExecAdvancedTest, KernelApcValidation) {
     EXPECT_EQ(unpd::exec::KernelApc::QueueUserApc((HANDLE)1234, (PVOID)0x7FFF0000, nullptr), STATUS_SUCCESS);
 }
 
+TEST(MmuAdvancedTest, PhysicalMemoryMappingRaii) {
+    unpd::mmu::PhysicalMemoryMapping<uint32_t> mapping(0x1000);
+    EXPECT_TRUE(mapping.IsValid());
+    if (mapping.IsValid()) {
+        *mapping = 0x1337BEEF;
+        EXPECT_EQ(*mapping, 0x1337BEEF);
+    }
+}
+
+TEST(MmuAdvancedTest, PteRemapperValidation) {
+    EXPECT_EQ(unpd::mmu::PteRemapper::MakePageWritable(0, 0), STATUS_INVALID_PARAMETER);
+    EXPECT_EQ(unpd::mmu::PteRemapper::MakePageWritable(0x1000, 0x7FFF0000), STATUS_SUCCESS);
+    EXPECT_EQ(unpd::mmu::PteRemapper::MakePageExecutable(0, 0), STATUS_INVALID_PARAMETER);
+    EXPECT_EQ(unpd::mmu::PteRemapper::MakePageExecutable(0x1000, 0x7FFF0000), STATUS_SUCCESS);
+}
+
 TEST(CommBackendTest, SharedMemValidation) {
     EXPECT_EQ(unpd::comm::SharedMemBackend::Initialize(nullptr), STATUS_INVALID_PARAMETER);
-    EXPECT_EQ(unpd::comm::SharedMemBackend::Initialize((PVOID)0x7FFF0000), STATUS_SUCCESS);
+    char sharedBuf[8192] = {};
+    EXPECT_EQ(unpd::comm::SharedMemBackend::Initialize(sharedBuf), STATUS_SUCCESS);
+    EXPECT_EQ(unpd::comm::SharedMemBackend::PollAndDispatch(), STATUS_SUCCESS);
 }
+

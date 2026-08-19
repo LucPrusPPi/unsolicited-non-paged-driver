@@ -508,8 +508,113 @@ UnpdComputeCrc32_Buffer PROC
     dec     r8
     jnz     @crc_byte_loop
 
-@crc_done:
+;------------------------------------------------------------------------------
+; CR0 Write-Protect (WP) Bit Toggles (Bit 16: 0x10000)
+;------------------------------------------------------------------------------
+UnpdDisableWriteProtect PROC
+    mov     rax, cr0
+    and     rax, NOT (10000h)
+    mov     cr0, rax
     ret
-UnpdComputeCrc32_Buffer ENDP
+UnpdDisableWriteProtect ENDP
+
+UnpdEnableWriteProtect PROC
+    mov     rax, cr0
+    or      rax, 10000h
+    mov     cr0, rax
+    ret
+UnpdEnableWriteProtect ENDP
+
+;------------------------------------------------------------------------------
+; Hardware Cache Line Flushing & Write-Back
+;------------------------------------------------------------------------------
+UnpdClflush PROC
+    clflush byte ptr [rcx]
+    ret
+UnpdClflush ENDP
+
+UnpdClflushopt PROC
+    clflushopt byte ptr [rcx]
+    ret
+UnpdClflushopt ENDP
+
+UnpdClwb PROC
+    clwb    byte ptr [rcx]
+    ret
+UnpdClwb ENDP
+
+;------------------------------------------------------------------------------
+; CPU Execution & Synchronization Primitives
+;------------------------------------------------------------------------------
+UnpdPause PROC
+    pause
+    ret
+UnpdPause ENDP
+
+UnpdCli PROC
+    cli
+    ret
+UnpdCli ENDP
+
+UnpdSti PROC
+    sti
+    ret
+UnpdSti ENDP
+
+UnpdSwapGs PROC
+    swapgs
+    ret
+UnpdSwapGs ENDP
+
+UnpdVmxoff PROC
+    vmxoff
+    ret
+UnpdVmxoff ENDP
+
+;------------------------------------------------------------------------------
+; Hardware I/O Port Access Primitives
+;------------------------------------------------------------------------------
+UnpdInByte PROC
+    mov     dx, cx
+    xor     rax, rax
+    in      al, dx
+    ret
+UnpdInByte ENDP
+
+UnpdOutByte PROC
+    ; RCX = port, DL = value
+    mov     rax, rdx
+    mov     dx, cx
+    out     dx, al
+    ret
+UnpdOutByte ENDP
+
+UnpdInWord PROC
+    mov     dx, cx
+    xor     rax, rax
+    in      ax, dx
+    ret
+UnpdInWord ENDP
+
+UnpdOutWord PROC
+    mov     ax, dx
+    mov     dx, cx
+    out     dx, ax
+    ret
+UnpdOutWord ENDP
+
+UnpdInDword PROC
+    mov     dx, cx
+    xor     rax, rax
+    in      eax, dx
+    ret
+UnpdInDword ENDP
+
+UnpdOutDword PROC
+    mov     eax, edx
+    mov     dx, cx
+    out     dx, eax
+    ret
+UnpdOutDword ENDP
 
 END

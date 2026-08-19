@@ -68,5 +68,17 @@ class TestReadmeStats(unittest.TestCase):
         rc = update_readme()
         self.assertEqual(rc, 0)
 
+class TestLuaScriptsIntegrity(unittest.TestCase):
+    def test_lua_scripts_presence_and_syntax(self):
+        lua_dir = Path(__file__).resolve().parent.parent / "scripts" / "lua"
+        self.assertTrue(lua_dir.is_dir())
+        lua_files = list(lua_dir.glob("*.lua"))
+        self.assertGreaterEqual(len(lua_files), 7)
+        for lf in lua_files:
+            content = lf.read_text(encoding="utf-8")
+            self.assertGreater(len(content), 100, f"Script {lf.name} is too small")
+            self.assertIn("function", content, f"Script {lf.name} does not contain functions")
+
 if __name__ == "__main__":
     unittest.main()
+

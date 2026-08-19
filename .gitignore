@@ -4,6 +4,8 @@ build-*/
 bin/
 lib/
 out/
+dist/
+*.zip
 x64/
 Debug/
 Release/
