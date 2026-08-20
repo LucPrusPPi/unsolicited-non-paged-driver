@@ -253,7 +253,8 @@ if(UNPD_BUILD_TESTS)
     )
 
     include(CTest)
-    add_test(NAME UnpdGoogleTests COMMAND unpd_tests)
+    include(GoogleTest)
+    gtest_discover_tests(unpd_tests)
 endif()
 
 # -----------------------------------------------------------------------------
