@@ -57,28 +57,29 @@ TEST(SimdEngineTest, FastZeroAndCopy) {
     EXPECT_EQ(memcmp(dest, zeroes, sizeof(dest)), 0);
 }
 
-class TestBase {
-public:
-    virtual ~TestBase() = default;
-    virtual void MethodA() {}
-    virtual void MethodB() {}
-};
+static void MockVmtFunction1() {}
+static void MockVmtFunction2() {}
 
 TEST(VmtResolverTest, ZeroRttiVtableResolution) {
-    TestBase object;
-    void** vtable = *reinterpret_cast<void***>(&object);
+    uint64_t mockVtable[4] = {
+        reinterpret_cast<uint64_t>(&MockVmtFunction1),
+        reinterpret_cast<uint64_t>(&MockVmtFunction2),
+        0,
+        0
+    };
 
-    uint64_t vtableAddr = reinterpret_cast<uint64_t>(vtable);
-    uint64_t methodAddr = reinterpret_cast<uint64_t>(vtable[0]);
-
-    uint64_t codeStart = (methodAddr > 0x10000) ? (methodAddr - 0x10000) : 0;
+    uint64_t codeStart = reinterpret_cast<uint64_t>(&MockVmtFunction1);
+    if (reinterpret_cast<uint64_t>(&MockVmtFunction2) < codeStart) {
+        codeStart = reinterpret_cast<uint64_t>(&MockVmtFunction2);
+    }
+    codeStart = (codeStart > 0x1000) ? (codeStart - 0x1000) : 0;
 
     unpd::mmu::VmtResolver::VmtInfo info{};
     bool found = unpd::mmu::VmtResolver::ResolveVtable(
-        reinterpret_cast<void*>(vtableAddr),
-        512,
+        mockVtable,
+        sizeof(mockVtable),
         codeStart,
-        0x20000,
+        0x100000,
         info
     );
 
