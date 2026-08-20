@@ -758,4 +758,239 @@ UnpdListRemoveEntryASM PROC
     ret
 UnpdListRemoveEntryASM ENDP
 
+;------------------------------------------------------------------------------
+; uint32_t UnpdQueryCpuSimdCapsASM(void)
+; Returns CPU SIMD capabilities mask: Bit 0 = SSE4.2, Bit 1 = AVX2, Bit 2 = AVX-512F
+;------------------------------------------------------------------------------
+UnpdQueryCpuSimdCapsASM PROC
+    push    rbx
+    xor     eax, eax            ; Bitmask result
+    push    rax
+
+    ; Check SSE4.2 (CPUID EAX=1, ECX Bit 20)
+    mov     eax, 1
+    cpuid
+    test    ecx, (1 SHL 20)
+    jz      @check_done
+    pop     rax
+    or      eax, 1              ; SSE4.2 supported
+    push    rax
+
+    ; Check OS XSAVE (CPUID EAX=1, ECX Bit 27)
+    test    ecx, (1 SHL 27)
+    jz      @check_done
+
+    ; Check XCR0 via XGETBV (ECX=0)
+    xor     ecx, ecx
+    xgetbv
+    and     eax, 6
+    cmp     eax, 6              ; XCR0[2:1] == 3 (YMM state enabled by OS)
+    jne     @check_done
+
+    ; Check AVX2 (CPUID EAX=7, ECX=0, EBX Bit 5)
+    mov     eax, 7
+    xor     ecx, ecx
+    cpuid
+    test    ebx, (1 SHL 5)
+    jz      @check_done
+    pop     rax
+    or      eax, 2              ; AVX2 supported
+    push    rax
+
+    ; Check AVX-512F (EBX Bit 16)
+    test    ebx, (1 SHL 16)
+    jz      @check_done
+    pop     rax
+    or      eax, 4              ; AVX-512F supported
+    push    rax
+
+@check_done:
+    pop     rax
+    pop     rbx
+    ret
+UnpdQueryCpuSimdCapsASM ENDP
+
+;------------------------------------------------------------------------------
+; const void* UnpdScanPatternAVX2ASM(const void* base [RCX], uint64_t size [RDX],
+;                                    const uint8_t* pattern [R8], const char* mask [R9])
+; Vectorized AVX2 32-byte chunk pattern scanner.
+;------------------------------------------------------------------------------
+UnpdScanPatternAVX2ASM PROC
+    test    rcx, rcx
+    jz      @avx_scan_fail
+    test    rdx, rdx
+    jz      @avx_scan_fail
+    test    r8, r8
+    jz      @avx_scan_fail
+    test    r9, r9
+    jz      @avx_scan_fail
+
+    push    rsi
+    push    rdi
+    push    rbx
+    push    r12
+    push    r13
+
+    mov     rsi, rcx            ; rsi = base
+    mov     rbx, rdx            ; rbx = size
+    mov     r12, r8             ; r12 = pattern
+    mov     r13, r9             ; r13 = mask
+
+    ; Broadcast first pattern byte to YMM0
+    movzx   eax, byte ptr [r12]
+    vmovd   xmm0, eax
+    vpbroadcastb ymm0, xmm0
+
+@avx_outer:
+    cmp     rbx, 32
+    jb      @avx_scalar_fallback
+
+    ; Load 32 bytes unaligned into YMM1
+    vmovdqu ymm1, ymmword ptr [rsi]
+    vpcmpeqb ymm2, ymm1, ymm0
+    vpmovmskb eax, ymm2
+
+@avx_bit_scan:
+    test    eax, eax
+    jz      @avx_next_32
+
+    bsf     ecx, eax
+    mov     rdi, rsi
+    add     rdi, rcx            ; Candidate match address
+
+    ; Verify pattern mask match at candidate
+    push    rax
+    push    rsi
+    push    rcx
+    mov     rsi, rdi
+    mov     r8, r12
+    mov     rdx, r13
+
+@avx_verify_loop:
+    mov     al, byte ptr [rdx]
+    test    al, al
+    jz      @avx_match_found
+
+    cmp     al, '?'
+    je      @avx_skip_cmp
+
+    mov     cl, byte ptr [rsi]
+    cmp     cl, byte ptr [r8]
+    jne     @avx_verify_failed
+
+@avx_skip_cmp:
+    inc     rsi
+    inc     r8
+    inc     rdx
+    jmp     @avx_verify_loop
+
+@avx_verify_failed:
+    pop     rcx
+    pop     rsi
+    pop     rax
+    ; Clear verified bit and continue scanning YMM mask
+    btr     eax, ecx
+    jmp     @avx_bit_scan
+
+@avx_match_found:
+    pop     rcx
+    pop     rsi
+    pop     rax
+    mov     rax, rdi
+    vzeroupper
+    pop     r13
+    pop     r12
+    pop     rbx
+    pop     rdi
+    pop     rsi
+    ret
+
+@avx_next_32:
+    add     rsi, 32
+    sub     rbx, 32
+    jmp     @avx_outer
+
+@avx_scalar_fallback:
+    ; Fallback to scalar scan for remaining < 32 bytes
+    vzeroupper
+    mov     rcx, rsi
+    mov     rdx, rbx
+    mov     r8, r12
+    mov     r9, r13
+    pop     r13
+    pop     r12
+    pop     rbx
+    pop     rdi
+    pop     rsi
+    jmp     UnpdScanPatternASM
+
+@avx_scan_fail:
+    xor     rax, rax
+    ret
+UnpdScanPatternAVX2ASM ENDP
+
+;------------------------------------------------------------------------------
+; void UnpdFastZeroAVX2ASM(void* address [RCX], uint64_t size [RDX])
+; Vectorized 256-bit AVX2 zeroing routine.
+;------------------------------------------------------------------------------
+UnpdFastZeroAVX2ASM PROC
+    test    rcx, rcx
+    jz      @zero_avx_done
+    test    rdx, rdx
+    jz      @zero_avx_done
+
+    vpxor   ymm0, ymm0, ymm0
+
+@zero_avx_loop:
+    cmp     rdx, 32
+    jb      @zero_avx_tail
+
+    vmovdqu ymmword ptr [rcx], ymm0
+    add     rcx, 32
+    sub     rdx, 32
+    jmp     @zero_avx_loop
+
+@zero_avx_tail:
+    vzeroupper
+    test    rdx, rdx
+    jz      @zero_avx_done
+    call    UnpdZeroMemorySecureASM
+
+@zero_avx_done:
+    ret
+UnpdFastZeroAVX2ASM ENDP
+
+;------------------------------------------------------------------------------
+; void UnpdFastCopyAVX2ASM(void* dest [RCX], const void* src [RDX], uint64_t size [R8])
+; Vectorized 256-bit AVX2 memory copy routine.
+;------------------------------------------------------------------------------
+UnpdFastCopyAVX2ASM PROC
+    test    rcx, rcx
+    jz      @copy_avx_done
+    test    rdx, rdx
+    jz      @copy_avx_done
+    test    r8, r8
+    jz      @copy_avx_done
+
+@copy_avx_loop:
+    cmp     r8, 32
+    jb      @copy_avx_tail
+
+    vmovdqu ymm0, ymmword ptr [rdx]
+    vmovdqu ymmword ptr [rcx], ymm0
+    add     rcx, 32
+    add     rdx, 32
+    sub     r8, 32
+    jmp     @copy_avx_loop
+
+@copy_avx_tail:
+    vzeroupper
+    test    r8, r8
+    jz      @copy_avx_done
+    call    UnpdFastCopy64
+
+@copy_avx_done:
+    ret
+UnpdFastCopyAVX2ASM ENDP
+
 END

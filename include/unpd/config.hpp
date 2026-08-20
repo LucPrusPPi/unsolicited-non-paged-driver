@@ -64,9 +64,21 @@
 #define UNPD_FEATURE_HARDWARE_BREAKPOINTS   1
 #endif
 
+#ifndef UNPD_FEATURE_EMULATOR_SANDBOX
+#define UNPD_FEATURE_EMULATOR_SANDBOX       1
+#endif
+
 // Security Configuration Toggles
 #ifndef UNPD_CONFIG_STRICT_SDDL_ACL
-#define UNPD_CONFIG_STRICT_SDDL_ACL         1
+#define UNPD_CONFIG_STRICT_SDDL_ACL          1
+#endif
+
+#ifndef UNPD_CONFIG_ALLOW_SIMD_ACCELERATION
+#define UNPD_CONFIG_ALLOW_SIMD_ACCELERATION  1
+#endif
+
+#ifndef UNPD_CONFIG_PREFER_AVX512
+#define UNPD_CONFIG_PREFER_AVX512            0
 #endif
 
 namespace unpd::config {
