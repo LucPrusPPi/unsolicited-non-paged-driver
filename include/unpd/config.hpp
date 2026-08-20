@@ -64,6 +64,11 @@
 #define UNPD_FEATURE_HARDWARE_BREAKPOINTS   1
 #endif
 
+// Security Configuration Toggles
+#ifndef UNPD_CONFIG_STRICT_SDDL_ACL
+#define UNPD_CONFIG_STRICT_SDDL_ACL         1
+#endif
+
 namespace unpd::config {
 
 constexpr bool kFeatureStealthCleaners       = (UNPD_FEATURE_STEALTH_CLEANERS != 0);

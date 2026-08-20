@@ -23,16 +23,24 @@ namespace unpd {
  * Handles connection management to \\.\UnsolicitedNonPagedDriver, zero-copy shared memory
  * double-buffering sessions, slab pool allocations, and automated mock fallback for CI environments.
  */
+enum class ClientExecutionMode {
+    AutoDetect,
+    ForceLiveDriver,
+    ForceMockLoopback
+};
+
 class DriverClient {
 public:
-    DriverClient() : m_handle(INVALID_HANDLE_VALUE), m_isMock(false) {
+    explicit DriverClient(ClientExecutionMode mode = ClientExecutionMode::AutoDetect)
+        : m_handle(INVALID_HANDLE_VALUE), m_mode(mode), m_isMock(false) {
         initMock();
-        open();
+        open(UNPD_USERMODE_PATH_W, mode);
     }
 
-    explicit DriverClient(const std::wstring& devicePath) : m_handle(INVALID_HANDLE_VALUE), m_isMock(false) {
+    DriverClient(const std::wstring& devicePath, ClientExecutionMode mode)
+        : m_handle(INVALID_HANDLE_VALUE), m_mode(mode), m_isMock(false) {
         initMock();
-        open(devicePath);
+        open(devicePath, mode);
     }
 
     ~DriverClient() {
@@ -43,7 +51,7 @@ public:
     DriverClient& operator=(const DriverClient&) = delete;
 
     DriverClient(DriverClient&& other) noexcept 
-        : m_handle(other.m_handle), m_isMock(other.m_isMock) {
+        : m_handle(other.m_handle), m_mode(other.m_mode), m_isMock(other.m_isMock) {
         other.m_handle = INVALID_HANDLE_VALUE;
     }
 
@@ -51,14 +59,22 @@ public:
         if (this != &other) {
             close();
             m_handle = other.m_handle;
+            m_mode = other.m_mode;
             m_isMock = other.m_isMock;
             other.m_handle = INVALID_HANDLE_VALUE;
         }
         return *this;
     }
 
-    bool open(const std::wstring& devicePath = UNPD_USERMODE_PATH_W) noexcept {
+    bool open(const std::wstring& devicePath = UNPD_USERMODE_PATH_W, ClientExecutionMode mode = ClientExecutionMode::AutoDetect) noexcept {
         close();
+        m_mode = mode;
+
+        if (m_mode == ClientExecutionMode::ForceMockLoopback) {
+            m_isMock = true;
+            return true;
+        }
+
         m_handle = CreateFileW(
             devicePath.c_str(),
             GENERIC_READ | GENERIC_WRITE,
@@ -68,11 +84,18 @@ public:
             FILE_ATTRIBUTE_NORMAL,
             nullptr
         );
+
         if (m_handle != INVALID_HANDLE_VALUE) {
             m_isMock = false;
             return true;
         }
-        // Simulated kernel loopback for CI & test harnesses without kernel driver loaded
+
+        if (m_mode == ClientExecutionMode::ForceLiveDriver) {
+            m_isMock = false;
+            return false;
+        }
+
+        // AutoDetect fallback for CI test harnesses without kernel driver loaded
         m_isMock = true;
         return true;
     }
@@ -613,6 +636,7 @@ private:
     }
 
     HANDLE m_handle;
+    ClientExecutionMode m_mode;
     bool m_isMock;
     std::mutex m_mockMutex;
     uint64_t m_mockNextHandle{ 100 };

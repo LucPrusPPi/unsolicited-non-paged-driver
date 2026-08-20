@@ -1,6 +1,12 @@
 #include "unpd/dispatch.hpp"
 #include "unpd/kernel_raii.hpp"
 
+#if UNPD_CONFIG_STRICT_SDDL_ACL && defined(_KERNEL_MODE)
+extern "C" {
+#include <wdmsec.h>
+}
+#endif
+
 extern "C"
 NTSTATUS
 DriverEntry(
@@ -17,6 +23,23 @@ DriverEntry(
     RtlInitUnicodeString(&deviceName, UNPD_DEVICE_NAME_W);
     RtlInitUnicodeString(&symlinkName, UNPD_DOS_DEVICE_NAME_W);
 
+#if UNPD_CONFIG_STRICT_SDDL_ACL && defined(_KERNEL_MODE)
+    // Strict SDDL ACL: Allow System (SY) and Builtin Admins (BA) Full Access
+    UNICODE_STRING sddlString;
+    RtlInitUnicodeString(&sddlString, L"D:P(A;;GA;;;SY)(A;;GA;;;BA)");
+
+    status = IoCreateDeviceSecure(
+        DriverObject,
+        sizeof(UNPD_DEVICE_EXTENSION),
+        &deviceName,
+        FILE_DEVICE_UNKNOWN,
+        FILE_DEVICE_SECURE_OPEN,
+        FALSE,
+        &sddlString,
+        (LPCGUID)&GUID_DEVCLASS_UNKNOWN,
+        &deviceObject
+    );
+#else
     status = IoCreateDevice(
         DriverObject,
         sizeof(UNPD_DEVICE_EXTENSION),
@@ -26,6 +49,7 @@ DriverEntry(
         FALSE,
         &deviceObject
     );
+#endif
 
     if (!NT_SUCCESS(status)) {
         return status;
