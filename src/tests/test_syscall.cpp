@@ -39,3 +39,23 @@ TEST(SyscallTest, SyscallAllocateFreeNonPagedInvalidHandle) {
     bool okFree = unpd::syscall::UnpdSyscallGateway::SyscallFreeNonPaged(handle, 100);
     EXPECT_FALSE(okFree);
 }
+
+TEST(SyscallTest, SyscallSimdPatternScanInvalidHandle) {
+    HANDLE handle = INVALID_HANDLE_VALUE;
+    uint8_t pattern[] = { 0xAA, 0xBB, 0xCC };
+    uint64_t matchAddr = 0;
+    bool ok = unpd::syscall::UnpdSyscallGateway::SyscallSimdPatternScan(
+        handle, 0x7FF600000000, 0x1000, pattern, sizeof(pattern), "xxx", matchAddr
+    );
+    EXPECT_FALSE(ok);
+}
+
+TEST(SyscallTest, SyscallResolveVmtInvalidHandle) {
+    HANDLE handle = INVALID_HANDLE_VALUE;
+    uint64_t vtableAddr = 0, firstMethod = 0;
+    uint32_t count = 0;
+    bool ok = unpd::syscall::UnpdSyscallGateway::SyscallResolveVmt(
+        handle, 0x7FF600000000, 0x5000, 0x7FF600001000, 0x2000, vtableAddr, count, firstMethod
+    );
+    EXPECT_FALSE(ok);
+}

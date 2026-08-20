@@ -30,36 +30,17 @@ enum class SimdLevel : uint32_t {
  */
 class SimdEngine {
 public:
-    static SimdEngine& Instance() noexcept {
-        static SimdEngine instance;
-        return instance;
-    }
-
-    SimdEngine() noexcept : m_caps(SimdLevel::Scalar) {
-        Initialize();
-    }
-
-    void Initialize() noexcept {
+    static SimdLevel GetActiveLevel() noexcept {
 #if UNPD_CONFIG_ALLOW_SIMD_ACCELERATION
         uint32_t capsMask = UnpdQueryCpuSimdCapsASM();
-        if ((capsMask & 2) != 0) {
-            m_caps = SimdLevel::AVX2;
-        } else if ((capsMask & 1) != 0) {
-            m_caps = SimdLevel::SSE42;
-        } else {
-            m_caps = SimdLevel::Scalar;
-        }
-#else
-        m_caps = SimdLevel::Scalar;
+        if ((capsMask & 2) != 0) return SimdLevel::AVX2;
+        if ((capsMask & 1) != 0) return SimdLevel::SSE42;
 #endif
+        return SimdLevel::Scalar;
     }
 
-    [[nodiscard]] SimdLevel GetActiveLevel() const noexcept {
-        return m_caps;
-    }
-
-    [[nodiscard]] const char* GetActiveLevelName() const noexcept {
-        switch (m_caps) {
+    static const char* GetActiveLevelName() noexcept {
+        switch (GetActiveLevel()) {
             case SimdLevel::AVX2:   return "AVX2 (256-bit Vectorized)";
             case SimdLevel::AVX512: return "AVX-512 (512-bit Vectorized)";
             case SimdLevel::SSE42:  return "SSE4.2 (128-bit Vectorized)";
@@ -67,11 +48,11 @@ public:
         }
     }
 
-    const void* ScanPattern(const void* base, uint64_t size, const uint8_t* pattern, const char* mask) noexcept {
+    static const void* ScanPattern(const void* base, uint64_t size, const uint8_t* pattern, const char* mask) noexcept {
         if (!base || !pattern || !mask || size == 0) return nullptr;
 
 #if UNPD_CONFIG_ALLOW_SIMD_ACCELERATION && defined(_KERNEL_MODE)
-        if (m_caps == SimdLevel::AVX2) {
+        if (GetActiveLevel() == SimdLevel::AVX2) {
             KFLOATING_SAVE fpuSave{};
             NTSTATUS status = KeSaveExtendedProcessorState(XSTATE_MASK_GSSE, reinterpret_cast<PXSTATE_SAVE>(&fpuSave));
             const void* result = nullptr;
@@ -85,11 +66,11 @@ public:
         return UnpdScanPatternASM(base, size, pattern, mask);
     }
 
-    void FastZero(void* address, uint64_t size) noexcept {
+    static void FastZero(void* address, uint64_t size) noexcept {
         if (!address || size == 0) return;
 
 #if UNPD_CONFIG_ALLOW_SIMD_ACCELERATION && defined(_KERNEL_MODE)
-        if (m_caps == SimdLevel::AVX2) {
+        if (GetActiveLevel() == SimdLevel::AVX2) {
             KFLOATING_SAVE fpuSave{};
             NTSTATUS status = KeSaveExtendedProcessorState(XSTATE_MASK_GSSE, reinterpret_cast<PXSTATE_SAVE>(&fpuSave));
             if (NT_SUCCESS(status)) {
@@ -102,11 +83,11 @@ public:
         UnpdZeroMemorySecureASM(address, size);
     }
 
-    void FastCopy(void* dest, const void* src, uint64_t size) noexcept {
+    static void FastCopy(void* dest, const void* src, uint64_t size) noexcept {
         if (!dest || !src || size == 0) return;
 
 #if UNPD_CONFIG_ALLOW_SIMD_ACCELERATION && defined(_KERNEL_MODE)
-        if (m_caps == SimdLevel::AVX2) {
+        if (GetActiveLevel() == SimdLevel::AVX2) {
             KFLOATING_SAVE fpuSave{};
             NTSTATUS status = KeSaveExtendedProcessorState(XSTATE_MASK_GSSE, reinterpret_cast<PXSTATE_SAVE>(&fpuSave));
             if (NT_SUCCESS(status)) {
@@ -118,9 +99,6 @@ public:
 #endif
         UnpdFastCopy64(dest, src, size / 8);
     }
-
-private:
-    SimdLevel m_caps;
 };
 
 } // namespace unpd::simd

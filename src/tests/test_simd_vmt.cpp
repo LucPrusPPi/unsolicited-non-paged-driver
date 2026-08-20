@@ -3,8 +3,7 @@
 #include "unpd/mmu/vmt_resolver.hpp"
 
 TEST(SimdEngineTest, InitializationAndLevelQuery) {
-    auto& engine = unpd::simd::SimdEngine::Instance();
-    EXPECT_NE(engine.GetActiveLevelName(), nullptr);
+    EXPECT_NE(unpd::simd::SimdEngine::GetActiveLevelName(), nullptr);
 }
 
 TEST(SimdEngineTest, PatternScanAVX2OrScalar) {
@@ -20,8 +19,7 @@ TEST(SimdEngineTest, PatternScanAVX2OrScalar) {
     uint8_t pattern[] = { 0xDE, 0xAD, 0xBE, 0xEF };
     const char mask[] = "xxxx";
 
-    auto& engine = unpd::simd::SimdEngine::Instance();
-    const void* match = engine.ScanPattern(buffer, sizeof(buffer), pattern, mask);
+    const void* match = unpd::simd::SimdEngine::ScanPattern(buffer, sizeof(buffer), pattern, mask);
 
     ASSERT_NE(match, nullptr);
     EXPECT_EQ(match, &buffer[64]);
@@ -32,12 +30,10 @@ TEST(SimdEngineTest, FastZeroAndCopy) {
     uint8_t dest[256];
     for (size_t i = 0; i < sizeof(src); ++i) src[i] = static_cast<uint8_t>(i + 1);
 
-    auto& engine = unpd::simd::SimdEngine::Instance();
-
-    engine.FastCopy(dest, src, sizeof(src));
+    unpd::simd::SimdEngine::FastCopy(dest, src, sizeof(src));
     EXPECT_EQ(memcmp(src, dest, sizeof(src)), 0);
 
-    engine.FastZero(dest, sizeof(dest));
+    unpd::simd::SimdEngine::FastZero(dest, sizeof(dest));
     uint8_t zeroes[256]{};
     EXPECT_EQ(memcmp(dest, zeroes, sizeof(dest)), 0);
 }

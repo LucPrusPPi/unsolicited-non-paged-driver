@@ -84,6 +84,8 @@ extern "C" {
 #define UNPD_IOCTL_INDEX_QUEUE_KAPC             0x80D
 #define UNPD_IOCTL_INDEX_CLEAN_PIDDB            0x80E
 #define UNPD_IOCTL_INDEX_CLEAN_UNLOADED         0x80F
+#define UNPD_IOCTL_INDEX_SIMD_PATTERN_SCAN      0x810
+#define UNPD_IOCTL_INDEX_RESOLVE_VMT            0x811
 
 // IOCTL Definitions using CTL_CODE macro
 #define IOCTL_UNPD_PING \
@@ -133,6 +135,12 @@ extern "C" {
 
 #define IOCTL_UNPD_CLEAN_UNLOADED \
     CTL_CODE(UNPD_DEVICE_TYPE, UNPD_IOCTL_INDEX_CLEAN_UNLOADED, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+
+#define IOCTL_UNPD_SIMD_PATTERN_SCAN \
+    CTL_CODE(UNPD_DEVICE_TYPE, UNPD_IOCTL_INDEX_SIMD_PATTERN_SCAN, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+
+#define IOCTL_UNPD_RESOLVE_VMT \
+    CTL_CODE(UNPD_DEVICE_TYPE, UNPD_IOCTL_INDEX_RESOLVE_VMT, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 
 // ============================================================================
 // Magic Validation Constants
@@ -314,6 +322,39 @@ typedef struct _UNPD_STEALTH_UNLOADED_RESPONSE {
     uint32_t Magic;
     uint32_t Status;
 } UNPD_STEALTH_UNLOADED_RESPONSE, *PUNPD_STEALTH_UNLOADED_RESPONSE;
+
+typedef struct _UNPD_SIMD_SCAN_REQUEST {
+    uint32_t Magic;
+    uint32_t PatternSize;
+    uint64_t BaseAddress;
+    uint64_t BufferSize;
+    uint8_t  Pattern[64];
+    char     Mask[64];
+} UNPD_SIMD_SCAN_REQUEST, *PUNPD_SIMD_SCAN_REQUEST;
+
+typedef struct _UNPD_SIMD_SCAN_RESPONSE {
+    uint32_t Magic;
+    uint32_t Status;
+    uint64_t MatchAddress;
+} UNPD_SIMD_SCAN_RESPONSE, *PUNPD_SIMD_SCAN_RESPONSE;
+
+typedef struct _UNPD_RESOLVE_VMT_REQUEST {
+    uint32_t Magic;
+    uint32_t Reserved;
+    uint64_t ModuleBase;
+    uint64_t ModuleSize;
+    uint64_t CodeSectionStart;
+    uint64_t CodeSectionSize;
+} UNPD_RESOLVE_VMT_REQUEST, *PUNPD_RESOLVE_VMT_REQUEST;
+
+typedef struct _UNPD_RESOLVE_VMT_RESPONSE {
+    uint32_t Magic;
+    uint32_t Status;
+    uint64_t VtableAddress;
+    uint32_t MethodCount;
+    uint32_t Reserved;
+    uint64_t FirstMethodAddress;
+} UNPD_RESOLVE_VMT_RESPONSE, *PUNPD_RESOLVE_VMT_RESPONSE;
 
 #pragma pack(pop)
 
