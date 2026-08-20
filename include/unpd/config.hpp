@@ -30,16 +30,21 @@
 #define UNPD_SERVICE_NAME           L"UnsolicitedNonPagedDriver"
 #define UNPD_SERVICE_DISPLAY_NAME   L"Unsolicited Non-Paged Driver (UNPD)"
 
-// Communication Backends
-#define UNPD_COMM_BACKEND_IOCTL       0
-#define UNPD_COMM_BACKEND_SHARED_MEM  1
-#define UNPD_COMM_BACKEND_HOOK        2
-#define UNPD_COMM_BACKEND_TCP_KSOCKET 3
+// Communication Backend Bitmask Flags
+#define UNPD_COMM_BACKEND_NONE        0x00
+#define UNPD_COMM_BACKEND_IOCTL       (1 << 0)  // 0x01: Direct IOCTL & Syscall Gateway
+#define UNPD_COMM_BACKEND_SHARED_MEM  (1 << 1)  // 0x02: Fast Lock-Free Shared Memory Ring-Buffer
+#define UNPD_COMM_BACKEND_HOOK        (1 << 2)  // 0x04: Kernel IRP / System Hooking
+#define UNPD_COMM_BACKEND_TCP_KSOCKET (1 << 3)  // 0x08: Ring-0 WSK TCP/IP Server
 
-// Modular Feature Flags (Toggle to 1 to enable, 0 to strip completely)
-#ifndef UNPD_FEATURE_COMM_BACKEND
-#define UNPD_FEATURE_COMM_BACKEND           UNPD_COMM_BACKEND_IOCTL
+// Modular Feature Flags (Toggle individual bit flags to enable multiple backends concurrently)
+#ifndef UNPD_FEATURE_COMM_MASK
+#define UNPD_FEATURE_COMM_MASK  (UNPD_COMM_BACKEND_IOCTL | UNPD_COMM_BACKEND_SHARED_MEM | UNPD_COMM_BACKEND_TCP_KSOCKET)
 #endif
+
+// Helper Macro to check if a specific backend is enabled in the bitmask
+#define UNPD_IS_COMM_ENABLED(backend_flag) \
+    (((UNPD_FEATURE_COMM_MASK) & (backend_flag)) != 0)
 
 #ifndef UNPD_FEATURE_SYNTHETIC_MOUSE_INPUT
 #define UNPD_FEATURE_SYNTHETIC_MOUSE_INPUT  1
