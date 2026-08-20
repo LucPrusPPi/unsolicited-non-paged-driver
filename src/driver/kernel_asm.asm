@@ -764,17 +764,16 @@ UnpdListRemoveEntryASM ENDP
 ;------------------------------------------------------------------------------
 UnpdQueryCpuSimdCapsASM PROC
     push    rbx
-    xor     eax, eax            ; Bitmask result
-    push    rax
+    push    rcx
+    push    rdx
+    xor     r8d, r8d            ; r8d stores capability bitmask
 
     ; Check SSE4.2 (CPUID EAX=1, ECX Bit 20)
     mov     eax, 1
     cpuid
     test    ecx, (1 SHL 20)
     jz      @check_done
-    pop     rax
-    or      eax, 1              ; SSE4.2 supported
-    push    rax
+    or      r8d, 1              ; SSE4.2 supported
 
     ; Check OS XSAVE (CPUID EAX=1, ECX Bit 27)
     test    ecx, (1 SHL 27)
@@ -782,7 +781,7 @@ UnpdQueryCpuSimdCapsASM PROC
 
     ; Check XCR0 via XGETBV (ECX=0)
     xor     ecx, ecx
-    xgetbv
+    xgetbv                      ; EAX = XCR0[31:0], EDX = XCR0[63:32]
     and     eax, 6
     cmp     eax, 6              ; XCR0[2:1] == 3 (YMM state enabled by OS)
     jne     @check_done
@@ -793,19 +792,17 @@ UnpdQueryCpuSimdCapsASM PROC
     cpuid
     test    ebx, (1 SHL 5)
     jz      @check_done
-    pop     rax
-    or      eax, 2              ; AVX2 supported
-    push    rax
+    or      r8d, 2              ; AVX2 supported
 
     ; Check AVX-512F (EBX Bit 16)
     test    ebx, (1 SHL 16)
     jz      @check_done
-    pop     rax
-    or      eax, 4              ; AVX-512F supported
-    push    rax
+    or      r8d, 4              ; AVX-512F supported
 
 @check_done:
-    pop     rax
+    mov     eax, r8d
+    pop     rdx
+    pop     rcx
     pop     rbx
     ret
 UnpdQueryCpuSimdCapsASM ENDP
