@@ -184,12 +184,9 @@ void MdlMemoryEngine::HandleProcessExit(HANDLE processId) noexcept {
         if (node->Descriptor.OwningProcess) {
             HANDLE pid = PsGetProcessId(node->Descriptor.OwningProcess);
             if (pid == processId) {
-                // If process is exiting, safely unmap UserVa right now in current context
+                // Windows automatically cleans up the dying process's VAD tree upon exit.
+                // Nullify UserVa to safely prevent double-unmap attempts in DestroySessionNode / DriverUnload.
                 if (node->Descriptor.UserVa && node->Descriptor.Mdl) {
-                    __try {
-                        MmUnmapLockedPages(node->Descriptor.UserVa, node->Descriptor.Mdl);
-                    } __except (EXCEPTION_EXECUTE_HANDLER) {
-                    }
                     node->Descriptor.UserVa = NULL;
                 }
             }
