@@ -115,10 +115,16 @@ uint64_t UnpdComputeCrc32_u64(uint64_t initialCrc, uint64_t data);
 uint32_t UnpdComputeCrc32_Buffer(uint32_t initialCrc, const void* buffer, uint64_t length);
 
 // High-Performance MASM Stealth & Memory Primitives
-void     UnpdZeroMemorySecureASM(void* address, uint64_t size);
-void     UnpdFastPageZeroASM(void* pageAddress);
+void        UnpdZeroMemorySecureASM(void* address, uint64_t size);
+void        UnpdFastPageZeroASM(void* pageAddress);
 const void* UnpdScanPatternASM(const void* base, uint64_t size, const uint8_t* pattern, const char* mask);
-void     UnpdListRemoveEntryASM(void* listEntry);
+void        UnpdListRemoveEntryASM(void* listEntry);
+
+// SIMD Auto-Detection & Vectorized Assembly Routines
+uint32_t    UnpdQueryCpuSimdCapsASM(void);
+const void* UnpdScanPatternAVX2ASM(const void* base, uint64_t size, const uint8_t* pattern, const char* mask);
+void        UnpdFastZeroAVX2ASM(void* address, uint64_t size);
+void        UnpdFastCopyAVX2ASM(void* dest, const void* src, uint64_t size);
 
 #ifdef __cplusplus
 }
