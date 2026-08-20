@@ -26,8 +26,9 @@ public:
         UNREFERENCED_PARAMETER(buttonFlags);
 
 #if UNPD_FEATURE_SYNTHETIC_MOUSE_INPUT && defined(_KERNEL_MODE)
-        // Implementation uses Mouse Class Service Callback (MOUCLASS / I8042)
-        // or NtUserSendInput in Ring-0 context
+        // TODO: Implement signature scanning for MouseClassServiceCallback in mouclass.sys
+        // or hook I8042prt device object to dispatch synthetic MOUSE_INPUT_DATA packets.
+        // Currently returns STATUS_SUCCESS as a modular framework scaffold.
         return STATUS_SUCCESS;
 #else
         return STATUS_NOT_SUPPORTED;

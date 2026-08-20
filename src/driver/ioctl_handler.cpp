@@ -729,13 +729,20 @@ NTSTATUS UnpdHandleResolveVmt(
     }
 
     unpd::mmu::VmtResolver::VmtInfo info{};
-    bool found = unpd::mmu::VmtResolver::ResolveVtable(
-        reinterpret_cast<const void*>(inBuf->ModuleBase),
-        inBuf->ModuleSize,
-        inBuf->CodeSectionStart,
-        inBuf->CodeSectionSize,
-        info
-    );
+    bool found = false;
+
+    __try {
+        found = unpd::mmu::VmtResolver::ResolveVtable(
+            reinterpret_cast<const void*>(inBuf->ModuleBase),
+            inBuf->ModuleSize,
+            inBuf->CodeSectionStart,
+            inBuf->CodeSectionSize,
+            info
+        );
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        *information = 0;
+        return GetExceptionCode();
+    }
 
     outBuf->Magic = UNPD_MAGIC_RESPONSE;
     outBuf->Status = found ? UNPD_STATUS_SUCCESS : UNPD_STATUS_NOT_FOUND;

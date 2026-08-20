@@ -42,7 +42,8 @@ NTSTATUS PiDdbCleaner::CleanDriverTrace(PCUNICODE_STRING driverName, ULONG timeD
     searchEntry.DriverName = *driverName;
     searchEntry.TimeDateStamp = timeDateStamp;
 
-    PRTL_AVL_TABLE pTable = nullptr; // Resolved via UnpdScanPatternASM
+    // TODO: Implement signature scanning for PiDDBCacheTable and PiDDBLock in ntoskrnl.exe PAGE section
+    PRTL_AVL_TABLE pTable = nullptr;
     if (!pTable) {
         return STATUS_NOT_FOUND;
     }

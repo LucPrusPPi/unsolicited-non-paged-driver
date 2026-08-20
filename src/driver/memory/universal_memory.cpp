@@ -84,6 +84,16 @@ NTSTATUS MdlMemoryEngine::Initialize() noexcept {
     return STATUS_SUCCESS;
 }
 
+#ifdef _KERNEL_MODE
+static void SafeUnmapUserVa(PVOID userVa, PMDL mdl) noexcept {
+    if (!userVa || !mdl) return;
+    __try {
+        MmUnmapLockedPages(userVa, mdl);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+    }
+}
+#endif
+
 void MdlMemoryEngine::DestroySessionNode(SessionListNode* node) noexcept {
     if (!node) return;
 
@@ -93,16 +103,9 @@ void MdlMemoryEngine::DestroySessionNode(SessionListNode* node) noexcept {
         PEPROCESS currentProcess = PsGetCurrentProcess();
         if (desc.OwningProcess && desc.OwningProcess != currentProcess) {
             unpd::mmu::ProcessAttachmentGuard guard(desc.OwningProcess);
-            __try {
-                MmUnmapLockedPages(desc.UserVa, desc.Mdl);
-            } __except (EXCEPTION_EXECUTE_HANDLER) {
-                // Ignore exception on unmap during shutdown/teardown
-            }
+            SafeUnmapUserVa(desc.UserVa, desc.Mdl);
         } else {
-            __try {
-                MmUnmapLockedPages(desc.UserVa, desc.Mdl);
-            } __except (EXCEPTION_EXECUTE_HANDLER) {
-            }
+            SafeUnmapUserVa(desc.UserVa, desc.Mdl);
         }
         desc.UserVa = NULL;
     }

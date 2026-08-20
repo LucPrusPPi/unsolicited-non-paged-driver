@@ -15,7 +15,7 @@ NTSTATUS UnloadedCleaner::CleanUnloadedDrivers(PCUNICODE_STRING driverName) {
     }
 
 #ifdef _KERNEL_MODE
-    // Resolve MmUnloadedDrivers array & MmLastUnloadedDriver pointer via pattern scanner
+    // TODO: Implement signature scanning for MmUnloadedDrivers array & MmLastUnloadedDriver pointer in ntoskrnl.exe
     PVOID* pMmUnloadedDrivers = nullptr;
     PULONG pMmLastUnloadedDriver = nullptr;
 
@@ -45,7 +45,7 @@ NTSTATUS UnloadedCleaner::CleanBigPoolTable(PVOID allocationAddress) {
         return STATUS_INVALID_PARAMETER;
     }
 
-    // Resolve PoolBigPageTable & PoolBigPageTableSize
+    // TODO: Implement signature scanning for PoolBigPageTable & PoolBigPageTableSize in ntoskrnl.exe
     PVOID pPoolBigPageTable = nullptr;
     PULONG pPoolBigPageTableSize = nullptr;
 
