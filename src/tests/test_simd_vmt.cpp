@@ -71,12 +71,14 @@ TEST(VmtResolverTest, ZeroRttiVtableResolution) {
     uint64_t vtableAddr = reinterpret_cast<uint64_t>(vtable);
     uint64_t methodAddr = reinterpret_cast<uint64_t>(vtable[0]);
 
+    uint64_t codeStart = (methodAddr > 0x10000) ? (methodAddr - 0x10000) : 0;
+
     unpd::mmu::VmtResolver::VmtInfo info{};
     bool found = unpd::mmu::VmtResolver::ResolveVtable(
-        reinterpret_cast<void*>(vtableAddr - 16),
+        reinterpret_cast<void*>(vtableAddr),
         512,
-        methodAddr - 0x1000,
-        0x10000,
+        codeStart,
+        0x20000,
         info
     );
 
