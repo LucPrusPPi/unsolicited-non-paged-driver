@@ -244,6 +244,60 @@ public:
         }
         return false;
     }
+
+    static bool SyscallMoveMouseRelative(HANDLE gateway, int32_t deltaX, int32_t deltaY, uint32_t buttonFlags = 0) noexcept {
+        if (gateway == INVALID_HANDLE_VALUE) return false;
+
+        UNPD_MOUSE_MOVE_REQUEST req{};
+        req.Magic = UNPD_MAGIC_REQUEST;
+        req.DeltaX = deltaX;
+        req.DeltaY = deltaY;
+        req.ButtonFlags = buttonFlags;
+
+        UNPD_MOUSE_MOVE_RESPONSE resp{};
+        DWORD bytesReturned = 0;
+
+        bool ok = DeviceIoControl(
+            gateway,
+            IOCTL_UNPD_MOVE_MOUSE_RELATIVE,
+            &req, sizeof(req),
+            &resp, sizeof(resp),
+            &bytesReturned,
+            nullptr
+        );
+
+        if (ok && bytesReturned == sizeof(resp) && resp.Magic == UNPD_MAGIC_RESPONSE) {
+            return resp.Status == UNPD_STATUS_SUCCESS;
+        }
+        return false;
+    }
+
+    static bool SyscallQueryProcessBase(HANDLE gateway, uint32_t processId, uint64_t& outBaseAddr, uint64_t& outPebAddr) noexcept {
+        if (gateway == INVALID_HANDLE_VALUE || processId == 0) return false;
+
+        UNPD_PROCESS_BASE_REQUEST req{};
+        req.Magic = UNPD_MAGIC_REQUEST;
+        req.ProcessId = processId;
+
+        UNPD_PROCESS_BASE_RESPONSE resp{};
+        DWORD bytesReturned = 0;
+
+        bool ok = DeviceIoControl(
+            gateway,
+            IOCTL_UNPD_QUERY_PROCESS_BASE,
+            &req, sizeof(req),
+            &resp, sizeof(resp),
+            &bytesReturned,
+            nullptr
+        );
+
+        if (ok && bytesReturned == sizeof(resp) && resp.Magic == UNPD_MAGIC_RESPONSE) {
+            outBaseAddr = resp.BaseAddress;
+            outPebAddr = resp.PebAddress;
+            return resp.Status == UNPD_STATUS_SUCCESS;
+        }
+        return false;
+    }
 };
 
 } // namespace unpd::syscall

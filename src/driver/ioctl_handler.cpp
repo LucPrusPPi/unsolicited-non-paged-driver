@@ -699,3 +699,73 @@ NTSTATUS UnpdHandleResolveVmt(
     *information = sizeof(UNPD_RESOLVE_VMT_RESPONSE);
     return found ? STATUS_SUCCESS : STATUS_NOT_FOUND;
 }
+
+#include "unpd/input/mouse.hpp"
+#include "unpd/exec/process_info.hpp"
+
+NTSTATUS UnpdHandleMoveMouseRelative(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+) {
+    UNREFERENCED_PARAMETER(devExt);
+
+    ULONG inLen = irpSp->Parameters.DeviceIoControl.InputBufferLength;
+    ULONG outLen = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    auto* inBuf = static_cast<PUNPD_MOUSE_MOVE_REQUEST>(irp->AssociatedIrp.SystemBuffer);
+    auto* outBuf = static_cast<PUNPD_MOUSE_MOVE_RESPONSE>(irp->AssociatedIrp.SystemBuffer);
+
+    if (inLen < sizeof(UNPD_MOUSE_MOVE_REQUEST) || outLen < sizeof(UNPD_MOUSE_MOVE_RESPONSE)) {
+        *information = 0;
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    if (inBuf->Magic != UNPD_MAGIC_REQUEST) {
+        *information = 0;
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    NTSTATUS status = unpd::input::MouseEngine::InjectRelativeMovement(inBuf->DeltaX, inBuf->DeltaY, inBuf->ButtonFlags);
+
+    outBuf->Magic = UNPD_MAGIC_RESPONSE;
+    outBuf->Status = NT_SUCCESS(status) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_INVALID_PARAM;
+
+    *information = sizeof(UNPD_MOUSE_MOVE_RESPONSE);
+    return status;
+}
+
+NTSTATUS UnpdHandleQueryProcessBase(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+) {
+    UNREFERENCED_PARAMETER(devExt);
+
+    ULONG inLen = irpSp->Parameters.DeviceIoControl.InputBufferLength;
+    ULONG outLen = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    auto* inBuf = static_cast<PUNPD_PROCESS_BASE_REQUEST>(irp->AssociatedIrp.SystemBuffer);
+    auto* outBuf = static_cast<PUNPD_PROCESS_BASE_RESPONSE>(irp->AssociatedIrp.SystemBuffer);
+
+    if (inLen < sizeof(UNPD_PROCESS_BASE_REQUEST) || outLen < sizeof(UNPD_PROCESS_BASE_RESPONSE)) {
+        *information = 0;
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    if (inBuf->Magic != UNPD_MAGIC_REQUEST || inBuf->ProcessId == 0) {
+        *information = 0;
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    unpd::exec::ProcessInfo info{};
+    NTSTATUS status = unpd::exec::ProcessInfoEngine::QueryProcessInfo(inBuf->ProcessId, info);
+
+    outBuf->Magic = UNPD_MAGIC_RESPONSE;
+    outBuf->Status = NT_SUCCESS(status) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_NOT_FOUND;
+    outBuf->BaseAddress = info.SectionBaseAddress;
+    outBuf->PebAddress = info.PebAddress;
+
+    *information = sizeof(UNPD_PROCESS_BASE_RESPONSE);
+    return status;
+}

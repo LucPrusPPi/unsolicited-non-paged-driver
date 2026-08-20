@@ -169,5 +169,19 @@ NTSTATUS UnpdHandleResolveVmt(
     ULONG_PTR* information
 );
 
+NTSTATUS UnpdHandleMoveMouseRelative(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+);
+
+NTSTATUS UnpdHandleQueryProcessBase(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+);
+
 #endif // _KERNEL_MODE
 #endif // UNPD_DISPATCH_HPP

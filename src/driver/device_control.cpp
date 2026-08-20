@@ -109,6 +109,18 @@ UnpdDeviceControl(
         status = UnpdHandleResolveVmt(devExt, Irp, irpSp, &information);
         break;
 
+#if UNPD_FEATURE_SYNTHETIC_MOUSE_INPUT
+    case IOCTL_UNPD_MOVE_MOUSE_RELATIVE:
+        status = UnpdHandleMoveMouseRelative(devExt, Irp, irpSp, &information);
+        break;
+#endif
+
+#if UNPD_FEATURE_PROCESS_BASE_QUERY
+    case IOCTL_UNPD_QUERY_PROCESS_BASE:
+        status = UnpdHandleQueryProcessBase(devExt, Irp, irpSp, &information);
+        break;
+#endif
+
     default:
         status = STATUS_INVALID_DEVICE_REQUEST;
         information = 0;

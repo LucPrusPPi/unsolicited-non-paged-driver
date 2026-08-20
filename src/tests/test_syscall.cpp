@@ -59,3 +59,16 @@ TEST(SyscallTest, SyscallResolveVmtInvalidHandle) {
     );
     EXPECT_FALSE(ok);
 }
+
+TEST(SyscallTest, SyscallMoveMouseRelativeInvalidHandle) {
+    HANDLE handle = INVALID_HANDLE_VALUE;
+    bool ok = unpd::syscall::UnpdSyscallGateway::SyscallMoveMouseRelative(handle, 10, -5);
+    EXPECT_FALSE(ok);
+}
+
+TEST(SyscallTest, SyscallQueryProcessBaseInvalidHandle) {
+    HANDLE handle = INVALID_HANDLE_VALUE;
+    uint64_t baseAddr = 0, pebAddr = 0;
+    bool ok = unpd::syscall::UnpdSyscallGateway::SyscallQueryProcessBase(handle, 1234, baseAddr, pebAddr);
+    EXPECT_FALSE(ok);
+}

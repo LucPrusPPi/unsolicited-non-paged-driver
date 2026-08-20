@@ -86,6 +86,8 @@ extern "C" {
 #define UNPD_IOCTL_INDEX_CLEAN_UNLOADED         0x80F
 #define UNPD_IOCTL_INDEX_SIMD_PATTERN_SCAN      0x810
 #define UNPD_IOCTL_INDEX_RESOLVE_VMT            0x811
+#define UNPD_IOCTL_INDEX_MOVE_MOUSE_RELATIVE    0x812
+#define UNPD_IOCTL_INDEX_QUERY_PROCESS_BASE     0x813
 
 // IOCTL Definitions using CTL_CODE macro
 #define IOCTL_UNPD_PING \
@@ -141,6 +143,12 @@ extern "C" {
 
 #define IOCTL_UNPD_RESOLVE_VMT \
     CTL_CODE(UNPD_DEVICE_TYPE, UNPD_IOCTL_INDEX_RESOLVE_VMT, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+
+#define IOCTL_UNPD_MOVE_MOUSE_RELATIVE \
+    CTL_CODE(UNPD_DEVICE_TYPE, UNPD_IOCTL_INDEX_MOVE_MOUSE_RELATIVE, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+
+#define IOCTL_UNPD_QUERY_PROCESS_BASE \
+    CTL_CODE(UNPD_DEVICE_TYPE, UNPD_IOCTL_INDEX_QUERY_PROCESS_BASE, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 
 // ============================================================================
 // Magic Validation Constants
@@ -355,6 +363,30 @@ typedef struct _UNPD_RESOLVE_VMT_RESPONSE {
     uint32_t Reserved;
     uint64_t FirstMethodAddress;
 } UNPD_RESOLVE_VMT_RESPONSE, *PUNPD_RESOLVE_VMT_RESPONSE;
+
+typedef struct _UNPD_MOUSE_MOVE_REQUEST {
+    uint32_t Magic;
+    int32_t  DeltaX;
+    int32_t  DeltaY;
+    uint32_t ButtonFlags;
+} UNPD_MOUSE_MOVE_REQUEST, *PUNPD_MOUSE_MOVE_REQUEST;
+
+typedef struct _UNPD_MOUSE_MOVE_RESPONSE {
+    uint32_t Magic;
+    uint32_t Status;
+} UNPD_MOUSE_MOVE_RESPONSE, *PUNPD_MOUSE_MOVE_RESPONSE;
+
+typedef struct _UNPD_PROCESS_BASE_REQUEST {
+    uint32_t Magic;
+    uint32_t ProcessId;
+} UNPD_PROCESS_BASE_REQUEST, *PUNPD_PROCESS_BASE_REQUEST;
+
+typedef struct _UNPD_PROCESS_BASE_RESPONSE {
+    uint32_t Magic;
+    uint32_t Status;
+    uint64_t BaseAddress;
+    uint64_t PebAddress;
+} UNPD_PROCESS_BASE_RESPONSE, *PUNPD_PROCESS_BASE_RESPONSE;
 
 #pragma pack(pop)
 
