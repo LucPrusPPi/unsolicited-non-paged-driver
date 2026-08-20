@@ -105,10 +105,9 @@ NTSTATUS SharedMemoryChannel::PollAndDispatch(PVOID sharedPageVa) noexcept {
     }
 
     UnpdLoadFence();
-    uint32_t currentTail = header->Ring.RequestTail;
-    const uint32_t currentHead = header->Ring.RequestHead;
+    uint32_t currentTail = static_cast<volatile uint32_t&>(header->Ring.RequestTail);
 
-    while (currentTail != currentHead) {
+    while (currentTail != static_cast<volatile uint32_t&>(header->Ring.RequestHead)) {
         const uint32_t slot = currentTail % SHARED_RING_CAPACITY;
         SharedCommand cmd = header->Ring.Commands[slot];
 
@@ -116,15 +115,15 @@ NTSTATUS SharedMemoryChannel::PollAndDispatch(PVOID sharedPageVa) noexcept {
         SharedResponse resp{};
         DispatchSingle(header, cmd, resp);
 
-        const uint32_t respHead = header->Ring.ResponseHead;
+        const uint32_t respHead = static_cast<volatile uint32_t&>(header->Ring.ResponseHead);
         const uint32_t respSlot = respHead % SHARED_RING_CAPACITY;
         header->Ring.Responses[respSlot] = resp;
 
         UnpdStoreFence();
-        header->Ring.ResponseHead = respHead + 1;
+        static_cast<volatile uint32_t&>(header->Ring.ResponseHead) = respHead + 1;
 
         currentTail++;
-        header->Ring.RequestTail = currentTail;
+        static_cast<volatile uint32_t&>(header->Ring.RequestTail) = currentTail;
         UnpdStoreFence();
     }
 
@@ -137,9 +136,13 @@ NTSTATUS SharedMemoryChannel::SwapDoubleBuffer(PVOID sharedPageVa) noexcept {
     }
 
     auto* header = static_cast<SharedChannelHeader*>(sharedPageVa);
-    header->ActiveBufferIndex ^= 1;
-    header->TotalSwaps = header->TotalSwaps + 1;
-    UnpdFastSwapBarrier(nullptr, nullptr);
+#ifdef _KERNEL_MODE
+    InterlockedXor(reinterpret_cast<volatile LONG*>(&header->ActiveBufferIndex), 1);
+#else
+    static_cast<volatile uint32_t&>(header->ActiveBufferIndex) ^= 1;
+#endif
+    UnpdMemoryFence();
+    header->TotalSwaps = static_cast<volatile uint64_t&>(header->TotalSwaps) + 1;
     return STATUS_SUCCESS;
 }
 
