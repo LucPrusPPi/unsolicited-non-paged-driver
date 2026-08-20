@@ -230,6 +230,9 @@ public:
     [[nodiscard]] SlabMemoryEngine& GetSlabEngine() noexcept { return m_slabEngine; }
     [[nodiscard]] PoolMemoryEngine& GetPoolEngine() noexcept { return m_poolEngine; }
 
+    [[nodiscard]] uint32_t GetActiveSessionsCount() const noexcept { return 0; }
+    [[nodiscard]] uint64_t GetTotalSwapsCount() const noexcept { return 0; }
+
 private:
     MdlMemoryEngine m_mdlEngine;
     SlabMemoryEngine m_slabEngine;
@@ -239,6 +242,13 @@ private:
 };
 
 } // namespace unpd::memory
-
 #endif // _KERNEL_MODE
+
+#ifdef _KERNEL_MODE
+inline void* __cdecl operator new(size_t, void* ptr) noexcept {
+    return ptr;
+}
+inline void __cdecl operator delete(void*, void*) noexcept {}
+#endif
+
 #endif // UNPD_UNIVERSAL_MEMORY_HPP

@@ -5,9 +5,8 @@
 
 #ifdef _KERNEL_MODE
 
-#include <ntddk.h>
 #include "common.h"
-#include "page_engine.hpp"
+#include "memory/universal_memory.hpp"
 
 typedef struct _UNPD_ALLOCATION_ENTRY {
     LIST_ENTRY ListEntry;
@@ -28,7 +27,7 @@ typedef struct _UNPD_DEVICE_EXTENSION {
     uint64_t TotalBytesFreed;
     uint64_t TotalIoctlProcessed;
     uint64_t SpinLockContentionCount;
-    UNPD_PAGE_ENGINE PageEngine;
+    unpd::memory::UniversalMemoryManager* MemoryManager;
 } UNPD_DEVICE_EXTENSION, *PUNPD_DEVICE_EXTENSION;
 
 extern "C" {

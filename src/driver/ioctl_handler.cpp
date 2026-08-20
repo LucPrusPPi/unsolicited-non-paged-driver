@@ -68,8 +68,8 @@ NTSTATUS UnpdHandleQueryStats(
         outBuf->TotalBytesFreed = devExt->TotalBytesFreed;
         outBuf->TotalIoctlProcessed = devExt->TotalIoctlProcessed;
         outBuf->SpinLockContentionCount = devExt->SpinLockContentionCount;
-        outBuf->TotalSwapsProcessed = devExt->PageEngine.TotalSwaps;
-        outBuf->ActiveSharedMappings = devExt->PageEngine.ActiveSessions;
+        outBuf->TotalSwapsProcessed = devExt->MemoryManager ? devExt->MemoryManager->GetTotalSwapsCount() : 0;
+        outBuf->ActiveSharedMappings = devExt->MemoryManager ? devExt->MemoryManager->GetActiveSessionsCount() : 0;
     }
 
     *information = sizeof(UNPD_STATS_RESPONSE);
@@ -200,30 +200,26 @@ NTSTATUS UnpdHandleMapSharedMemory(
         return STATUS_INVALID_PARAMETER;
     }
 
-    uint64_t handle = 0;
-    PVOID userVa = nullptr;
-    SIZE_T totalBytes = 0;
-
-    NTSTATUS status = UnpdCreateSharedSession(
-        &devExt->PageEngine,
-        inBuf->PageCount,
-        &handle,
-        &userVa,
-        &totalBytes
-    );
-
-    if (!NT_SUCCESS(status)) {
+    if (!devExt->MemoryManager) {
         *information = 0;
-        return status;
+        return STATUS_DEVICE_NOT_READY;
     }
+
+    auto result = devExt->MemoryManager->AllocateMdlSharedSession(inBuf->PageCount);
+    if (!result.has_value()) {
+        *information = 0;
+        return result.error();
+    }
+
+    const auto& sessionDesc = result.value();
 
     outBuf->Magic = UNPD_MAGIC_RESPONSE;
     outBuf->Status = UNPD_STATUS_SUCCESS;
-    outBuf->SessionHandle = handle;
-    outBuf->UserAddress = reinterpret_cast<uint64_t>(userVa);
-    outBuf->TotalBytes = static_cast<uint64_t>(totalBytes);
+    outBuf->SessionHandle = sessionDesc.SessionId;
+    outBuf->UserAddress = reinterpret_cast<uint64_t>(sessionDesc.UserVa);
+    outBuf->TotalBytes = static_cast<uint64_t>(sessionDesc.TotalBytes);
     outBuf->BufferCount = 2; // Double-buffering
-    outBuf->BufferSize = static_cast<uint32_t>(totalBytes / 2);
+    outBuf->BufferSize = static_cast<uint32_t>(sessionDesc.TotalBytes / 2);
 
     *information = sizeof(UNPD_MAP_SHARED_RESPONSE);
     return STATUS_SUCCESS;
@@ -250,7 +246,12 @@ NTSTATUS UnpdHandleUnmapSharedMemory(
         return STATUS_INVALID_PARAMETER;
     }
 
-    NTSTATUS status = UnpdDestroySharedSession(&devExt->PageEngine, inBuf->SessionHandle);
+    if (!devExt->MemoryManager) {
+        *information = 0;
+        return STATUS_DEVICE_NOT_READY;
+    }
+
+    NTSTATUS status = devExt->MemoryManager->FreeMdlSharedSession(inBuf->SessionHandle);
 
     outBuf->Magic = UNPD_MAGIC_RESPONSE;
     outBuf->Status = NT_SUCCESS(status) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_NOT_FOUND;
@@ -280,16 +281,20 @@ NTSTATUS UnpdHandleSwapBuffers(
         return STATUS_INVALID_PARAMETER;
     }
 
+    if (!devExt->MemoryManager) {
+        *information = 0;
+        return STATUS_DEVICE_NOT_READY;
+    }
+
     uint32_t activeIdx = 0;
     uint32_t standbyIdx = 0;
     uint64_t totalSwaps = 0;
 
-    NTSTATUS status = UnpdSwapSessionBuffers(
-        &devExt->PageEngine,
+    NTSTATUS status = devExt->MemoryManager->SwapBuffers(
         inBuf->SessionHandle,
-        &activeIdx,
-        &standbyIdx,
-        &totalSwaps
+        activeIdx,
+        standbyIdx,
+        totalSwaps
     );
 
     if (!NT_SUCCESS(status)) {
@@ -332,24 +337,21 @@ NTSTATUS UnpdHandleSlabAlloc(
         return STATUS_INVALID_PARAMETER;
     }
 
-    PVOID blockAddress = nullptr;
-    uint32_t blockSize = 0;
-
-    NTSTATUS status = UnpdSlabAllocate(
-        &devExt->PageEngine,
-        inBuf->BlockClass,
-        &blockAddress,
-        &blockSize
-    );
-
-    if (!NT_SUCCESS(status)) {
+    if (!devExt->MemoryManager) {
         *information = 0;
-        return status;
+        return STATUS_DEVICE_NOT_READY;
+    }
+
+    uint32_t blockSize = 0;
+    auto result = devExt->MemoryManager->AllocateSlab(inBuf->BlockClass, blockSize);
+    if (!result.has_value()) {
+        *information = 0;
+        return result.error();
     }
 
     outBuf->Magic = UNPD_MAGIC_RESPONSE;
     outBuf->Status = UNPD_STATUS_SUCCESS;
-    outBuf->SlabHandle = reinterpret_cast<uint64_t>(blockAddress);
+    outBuf->SlabHandle = result.value();
     outBuf->BlockSize = blockSize;
 
     *information = sizeof(UNPD_SLAB_RESPONSE);
@@ -372,29 +374,20 @@ NTSTATUS UnpdHandleSlabFree(
         return STATUS_BUFFER_TOO_SMALL;
     }
 
-    if (inBuf->Magic != UNPD_MAGIC_REQUEST || inBuf->SlabHandle == 0) {
+    if (inBuf->Magic != UNPD_MAGIC_RESPONSE || inBuf->SlabHandle == 0) {
         *information = 0;
         return STATUS_INVALID_PARAMETER;
     }
 
-    uint32_t blockClass = 0;
-    if (inBuf->BlockSize == 64) blockClass = 0;
-    else if (inBuf->BlockSize == 256) blockClass = 1;
-    else if (inBuf->BlockSize == 1024) blockClass = 2;
-    else if (inBuf->BlockSize == 4096) blockClass = 3;
-    else {
+    if (!devExt->MemoryManager) {
         *information = 0;
-        return STATUS_INVALID_PARAMETER;
+        return STATUS_DEVICE_NOT_READY;
     }
 
-    NTSTATUS status = UnpdSlabFree(
-        &devExt->PageEngine,
-        blockClass,
-        reinterpret_cast<PVOID>(inBuf->SlabHandle)
-    );
+    NTSTATUS status = devExt->MemoryManager->FreeSlab(inBuf->SlabHandle, inBuf->BlockSize);
 
     outBuf->Magic = UNPD_MAGIC_RESPONSE;
-    outBuf->Status = NT_SUCCESS(status) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_NOT_FOUND;
+    outBuf->Status = NT_SUCCESS(status) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_INVALID_PARAM;
 
     *information = sizeof(UNPD_FREE_RESPONSE);
     return status;

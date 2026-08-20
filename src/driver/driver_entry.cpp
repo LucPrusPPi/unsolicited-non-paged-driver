@@ -62,17 +62,28 @@ DriverEntry(
     devExt->SymbolicLinkName = symlinkName;
     KeInitializeSpinLock(&devExt->StateLock);
     InitializeListHead(&devExt->AllocationListHead);
-    devExt->NextAllocationHandle = 1;
+    devExt->MemoryManager = static_cast<unpd::memory::UniversalMemoryManager*>(
+        ExAllocatePool2(POOL_FLAG_NON_PAGED, sizeof(unpd::memory::UniversalMemoryManager), 'NDPU')
+    );
+    if (!devExt->MemoryManager) {
+        IoDeleteDevice(deviceObject);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
-    status = UnpdInitPageEngine(&devExt->PageEngine);
+    new (devExt->MemoryManager) unpd::memory::UniversalMemoryManager();
+    status = devExt->MemoryManager->Initialize();
     if (!NT_SUCCESS(status)) {
+        devExt->MemoryManager->~UniversalMemoryManager();
+        ExFreePoolWithTag(devExt->MemoryManager, 'NDPU');
         IoDeleteDevice(deviceObject);
         return status;
     }
 
     status = IoCreateSymbolicLink(&symlinkName, &deviceName);
     if (!NT_SUCCESS(status)) {
-        UnpdCleanupPageEngine(&devExt->PageEngine);
+        devExt->MemoryManager->Shutdown();
+        devExt->MemoryManager->~UniversalMemoryManager();
+        ExFreePoolWithTag(devExt->MemoryManager, 'NDPU');
         IoDeleteDevice(deviceObject);
         return status;
     }
@@ -100,7 +111,12 @@ DriverUnload(
 
         IoDeleteSymbolicLink(&devExt->SymbolicLinkName);
 
-        UnpdCleanupPageEngine(&devExt->PageEngine);
+        if (devExt->MemoryManager != nullptr) {
+            devExt->MemoryManager->Shutdown();
+            devExt->MemoryManager->~UniversalMemoryManager();
+            ExFreePoolWithTag(devExt->MemoryManager, 'NDPU');
+            devExt->MemoryManager = nullptr;
+        }
 
         {
             unpd::SpinlockGuard guard(&devExt->StateLock);

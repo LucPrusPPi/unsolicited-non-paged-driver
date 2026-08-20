@@ -62,7 +62,6 @@ if(EXISTS "${WDK_INC_KM}")
         src/driver/device_control.cpp
         src/driver/ioctl_handler.cpp
         src/driver/memory_manager.cpp
-        src/driver/page_engine.cpp
         src/driver/memory/universal_memory.cpp
         src/driver/mmu/paging_engine.cpp
         src/driver/mmu/physical_memory.cpp
