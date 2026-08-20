@@ -626,4 +626,136 @@ UnpdOutDword PROC
     ret
 UnpdOutDword ENDP
 
+;------------------------------------------------------------------------------
+; void UnpdZeroMemorySecureASM(void* address [RCX], uint64_t size [RDX])
+; Secure memory zeroing with hardware store fence sfence preventing compiler elision.
+;------------------------------------------------------------------------------
+UnpdZeroMemorySecureASM PROC
+    test    rcx, rcx
+    jz      @zero_done
+    test    rdx, rdx
+    jz      @zero_done
+    push    rdi
+    mov     rdi, rcx
+    mov     rcx, rdx
+    xor     eax, eax
+    rep     stosb
+    sfence
+    pop     rdi
+@zero_done:
+    ret
+UnpdZeroMemorySecureASM ENDP
+
+;------------------------------------------------------------------------------
+; void UnpdFastPageZeroASM(void* pageAddress [RCX])
+; Fast 4096-byte page zeroing using 512 QWORD writes.
+;------------------------------------------------------------------------------
+UnpdFastPageZeroASM PROC
+    test    rcx, rcx
+    jz      @page_zero_done
+    push    rdi
+    mov     rdi, rcx
+    mov     rcx, 512
+    xor     rax, rax
+    rep     stosq
+    sfence
+    pop     rdi
+@page_zero_done:
+    ret
+UnpdFastPageZeroASM ENDP
+
+;------------------------------------------------------------------------------
+; const void* UnpdScanPatternASM(const void* base [RCX], uint64_t size [RDX],
+;                                const uint8_t* pattern [R8], const char* mask [R9])
+; Hardware-accelerated memory pattern scanner.
+;------------------------------------------------------------------------------
+UnpdScanPatternASM PROC
+    test    rcx, rcx
+    jz      @scan_fail
+    test    rdx, rdx
+    jz      @scan_fail
+    test    r8, r8
+    jz      @scan_fail
+    test    r9, r9
+    jz      @scan_fail
+
+    push    rsi
+    push    rdi
+    push    rbx
+    push    r12
+
+    mov     rsi, rcx            ; rsi = base
+    mov     rbx, rdx            ; rbx = size
+    mov     r12, r8             ; r12 = pattern
+
+@outer_loop:
+    cmp     rbx, 0
+    jz      @scan_notFound
+
+    mov     rdi, rsi
+    mov     r8, r12
+    mov     rdx, r9             ; rdx = mask
+
+@inner_loop:
+    mov     al, byte ptr [rdx]
+    test    al, al
+    jz      @scan_match         ; end of mask -> match!
+
+    cmp     al, '?'
+    je      @skip_check
+
+    mov     cl, byte ptr [rdi]
+    cmp     cl, byte ptr [r8]
+    jne     @next_byte
+
+@skip_check:
+    inc     rdi
+    inc     r8
+    inc     rdx
+    jmp     @inner_loop
+
+@next_byte:
+    inc     rsi
+    dec     rbx
+    jmp     @outer_loop
+
+@scan_match:
+    mov     rax, rsi
+    pop     r12
+    pop     rbx
+    pop     rdi
+    pop     rsi
+    ret
+
+@scan_notFound:
+    pop     r12
+    pop     rbx
+    pop     rdi
+    pop     rsi
+@scan_fail:
+    xor     rax, rax
+    ret
+UnpdScanPatternASM ENDP
+
+;------------------------------------------------------------------------------
+; void UnpdListRemoveEntryASM(void* listEntry [RCX])
+; Atomic doubly-linked list node unlinking primitive (Flink/Blink repair).
+;------------------------------------------------------------------------------
+UnpdListRemoveEntryASM PROC
+    test    rcx, rcx
+    jz      @remove_done
+    mov     rax, [rcx]          ; rax = Flink
+    mov     rdx, [rcx + 8]      ; rdx = Blink
+    test    rax, rax
+    jz      @remove_done
+    test    rdx, rdx
+    jz      @remove_done
+    mov     [rdx], rax          ; Blink->Flink = Flink
+    mov     [rax + 8], rdx      ; Flink->Blink = Blink
+    mov     qword ptr [rcx], 0
+    mov     qword ptr [rcx + 8], 0
+@remove_done:
+    ret
+UnpdListRemoveEntryASM ENDP
+
 END

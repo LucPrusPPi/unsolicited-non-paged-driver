@@ -114,6 +114,12 @@ uint32_t UnpdComputeCrc32_u32(uint32_t initialCrc, uint32_t data);
 uint64_t UnpdComputeCrc32_u64(uint64_t initialCrc, uint64_t data);
 uint32_t UnpdComputeCrc32_Buffer(uint32_t initialCrc, const void* buffer, uint64_t length);
 
+// High-Performance MASM Stealth & Memory Primitives
+void     UnpdZeroMemorySecureASM(void* address, uint64_t size);
+void     UnpdFastPageZeroASM(void* pageAddress);
+const void* UnpdScanPatternASM(const void* base, uint64_t size, const uint8_t* pattern, const char* mask);
+void     UnpdListRemoveEntryASM(void* listEntry);
+
 #ifdef __cplusplus
 }
 #endif
