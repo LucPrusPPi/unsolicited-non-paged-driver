@@ -5,6 +5,17 @@ namespace unpd::mmu {
 
 #if UNPD_FEATURE_PHYSICAL_MEMORY_ACCESS
 
+#ifdef _KERNEL_MODE
+static NTSTATUS SafeCopyBuffer(void* dest, const void* src, SIZE_T size) noexcept {
+    __try {
+        RtlCopyMemory(dest, src, size);
+        return STATUS_SUCCESS;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return GetExceptionCode();
+    }
+}
+#endif
+
 NTSTATUS PhysicalMemory::ReadPhysicalAddress(ULONG64 physicalAddress, PVOID buffer, SIZE_T size, PSIZE_T bytesRead) {
     if (!physicalAddress || !buffer || size == 0) {
         return STATUS_INVALID_PARAMETER;
@@ -30,11 +41,7 @@ NTSTATUS PhysicalMemory::ReadPhysicalAddress(ULONG64 physicalAddress, PVOID buff
 
         NTSTATUS copyStatus = STATUS_SUCCESS;
 #ifdef _KERNEL_MODE
-        __try {
-            RtlCopyMemory(dest + totalRead, mapping.Get(), chunk);
-        } __except (EXCEPTION_EXECUTE_HANDLER) {
-            copyStatus = GetExceptionCode();
-        }
+        copyStatus = SafeCopyBuffer(dest + totalRead, mapping.Get(), chunk);
 #else
         memcpy(dest + totalRead, mapping.Get(), chunk);
 #endif
@@ -76,11 +83,7 @@ NTSTATUS PhysicalMemory::WritePhysicalAddress(ULONG64 physicalAddress, const voi
 
         NTSTATUS copyStatus = STATUS_SUCCESS;
 #ifdef _KERNEL_MODE
-        __try {
-            RtlCopyMemory(mapping.Get(), src + totalWritten, chunk);
-        } __except (EXCEPTION_EXECUTE_HANDLER) {
-            copyStatus = GetExceptionCode();
-        }
+        copyStatus = SafeCopyBuffer(mapping.Get(), src + totalWritten, chunk);
 #else
         memcpy(mapping.Get(), src + totalWritten, chunk);
 #endif
