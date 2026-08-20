@@ -10,6 +10,10 @@ NTSTATUS PhysicalMemory::ReadPhysicalAddress(ULONG64 physicalAddress, PVOID buff
         return STATUS_INVALID_PARAMETER;
     }
 
+    if (!IsPhysicalAddressAllowed(physicalAddress, size)) {
+        return STATUS_ACCESS_DENIED;
+    }
+
     SIZE_T totalRead = 0;
     auto* dest = static_cast<uint8_t*>(buffer);
 
@@ -35,6 +39,10 @@ NTSTATUS PhysicalMemory::ReadPhysicalAddress(ULONG64 physicalAddress, PVOID buff
 NTSTATUS PhysicalMemory::WritePhysicalAddress(ULONG64 physicalAddress, const void* buffer, SIZE_T size, PSIZE_T bytesWritten) {
     if (!physicalAddress || !buffer || size == 0) {
         return STATUS_INVALID_PARAMETER;
+    }
+
+    if (!IsPhysicalAddressAllowed(physicalAddress, size)) {
+        return STATUS_ACCESS_DENIED;
     }
 
     SIZE_T totalWritten = 0;

@@ -99,10 +99,21 @@ public:
 };
 
 /**
- * @brief High-level Physical RAM reader and writer.
+ * @brief High-level Physical RAM reader and writer with security boundary checks.
  */
 class PhysicalMemory {
 public:
+    /**
+     * @brief Checks if the given physical memory range is valid RAM and not MMIO/APIC/Reserved hardware.
+     */
+    static bool IsPhysicalAddressAllowed(ULONG64 physicalAddress, SIZE_T size) noexcept {
+        if (!physicalAddress || size == 0) return false;
+        // Restrict lower 1MB legacy BIOS/IVT/BDA space and APIC/MMIO typical range (>= 0xFEE00000 && < 0x100000000)
+        if (physicalAddress < 0x100000ULL) return false;
+        if (physicalAddress >= 0xFEE00000ULL && physicalAddress < 0x100000000ULL) return false;
+        return true;
+    }
+
     static NTSTATUS ReadPhysicalAddress(ULONG64 physicalAddress, PVOID buffer, SIZE_T size, PSIZE_T bytesRead);
     static NTSTATUS WritePhysicalAddress(ULONG64 physicalAddress, const void* buffer, SIZE_T size, PSIZE_T bytesWritten);
 };

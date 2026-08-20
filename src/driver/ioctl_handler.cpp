@@ -643,12 +643,26 @@ NTSTATUS UnpdHandleSimdPatternScan(
         return STATUS_INVALID_PARAMETER;
     }
 
-    const void* match = unpd::simd::SimdEngine::ScanPattern(
-        reinterpret_cast<const void*>(inBuf->BaseAddress),
-        inBuf->BufferSize,
-        inBuf->Pattern,
-        inBuf->Mask
-    );
+    // Validate mask is null-terminated within buffer
+    inBuf->Mask[63] = '\0';
+    inBuf->Pattern[63] = 0;
+
+    const void* match = nullptr;
+    __try {
+        if (inBuf->BaseAddress < 0x7FFFFFFFFFFFULL) {
+            ProbeForRead(reinterpret_cast<PVOID>(inBuf->BaseAddress), inBuf->BufferSize, 1);
+        }
+
+        match = unpd::simd::SimdEngine::ScanPattern(
+            reinterpret_cast<const void*>(inBuf->BaseAddress),
+            inBuf->BufferSize,
+            inBuf->Pattern,
+            inBuf->Mask
+        );
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        *information = 0;
+        return GetExceptionCode();
+    }
 
     outBuf->Magic = UNPD_MAGIC_RESPONSE;
     outBuf->Status = (match != nullptr) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_NOT_FOUND;

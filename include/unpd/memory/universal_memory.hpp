@@ -38,6 +38,8 @@ struct SharedSessionDescriptor {
     volatile LONG64 SwapCounter;
     HANDLE SectionHandle;
     PEPROCESS OwningProcess;
+    volatile LONG ReferenceCount; ///< Atomic reference counter to prevent UAF
+    volatile LONG IsTornDown;     ///< Flag set when session teardown has started
 };
 
 /**
@@ -95,11 +97,16 @@ public:
     NTSTATUS FreeSharedSession(uint64_t sessionId) noexcept;
     NTSTATUS SwapBuffers(uint64_t sessionId, uint32_t& outActive, uint32_t& outStandby, uint64_t& outSwaps) noexcept;
 
+    SessionListNode* AcquireSessionReference(uint64_t sessionId) noexcept;
+    void ReleaseSessionReference(SessionListNode* node) noexcept;
+
 private:
+    void DestroySessionNode(SessionListNode* node) noexcept;
+
     KSPIN_LOCK m_lock;
     LIST_ENTRY m_sessionListHead;
     bool m_initialized;
-    uint64_t m_nextSessionId;
+    volatile LONG64 m_nextSessionId;
 };
 
 /**
@@ -120,7 +127,19 @@ public:
 
 private:
     static constexpr size_t SLAB_CLASSES = 4;
+    static constexpr size_t MAX_SLAB_HANDLES = 1024;
+
+    struct SlabHandleEntry {
+        PVOID BlockAddress;
+        uint32_t BlockClass;
+        uint32_t Generation;
+        volatile LONG InUse;
+    };
+
     NPAGED_LOOKASIDE_LIST m_slabLookaside[SLAB_CLASSES];
+    SlabHandleEntry m_handleTable[MAX_SLAB_HANDLES];
+    KSPIN_LOCK m_tableLock;
+    volatile LONG m_nextSlot;
     bool m_initialized;
 };
 

@@ -683,18 +683,32 @@ UnpdScanPatternASM PROC
     push    rdi
     push    rbx
     push    r12
+    push    r13
 
     mov     rsi, rcx            ; rsi = base
     mov     rbx, rdx            ; rbx = size
     mov     r12, r8             ; r12 = pattern
+    mov     r13, r9             ; r13 = mask
+
+    ; Compute mask length into r10 to prevent OOB-read
+    xor     r10, r10
+@calc_mask_len:
+    cmp     byte ptr [r13 + r10], 0
+    jz      @mask_len_done
+    inc     r10
+    jmp     @calc_mask_len
+@mask_len_done:
+    test    r10, r10
+    jz      @scan_notFound
 
 @outer_loop:
-    cmp     rbx, 0
-    jz      @scan_notFound
+    ; Ensure remaining buffer has enough room for entire pattern
+    cmp     rbx, r10
+    jb      @scan_notFound
 
     mov     rdi, rsi
     mov     r8, r12
-    mov     rdx, r9             ; rdx = mask
+    mov     rdx, r13            ; rdx = mask
 
 @inner_loop:
     mov     al, byte ptr [rdx]
@@ -721,6 +735,7 @@ UnpdScanPatternASM PROC
 
 @scan_match:
     mov     rax, rsi
+    pop     r13
     pop     r12
     pop     rbx
     pop     rdi
@@ -728,6 +743,7 @@ UnpdScanPatternASM PROC
     ret
 
 @scan_notFound:
+    pop     r13
     pop     r12
     pop     rbx
     pop     rdi

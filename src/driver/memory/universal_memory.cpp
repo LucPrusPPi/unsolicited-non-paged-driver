@@ -66,7 +66,7 @@ static constexpr ULONG SLAB_SIZES[4] = { 64, 256, 1024, 4096 };
 static constexpr ULONG SLAB_TAGS[4]  = { '1LSU', '2LSU', '3LSU', '4LSU' };
 
 // ============================================================================
-// MdlMemoryEngine Implementation (Dynamic Sessions & Context Invariance)
+// MdlMemoryEngine Implementation (Dynamic Sessions, Refcounting & Context Invariance)
 // ============================================================================
 
 MdlMemoryEngine::MdlMemoryEngine() noexcept
@@ -84,6 +84,43 @@ NTSTATUS MdlMemoryEngine::Initialize() noexcept {
     return STATUS_SUCCESS;
 }
 
+void MdlMemoryEngine::DestroySessionNode(SessionListNode* node) noexcept {
+    if (!node) return;
+
+    SharedSessionDescriptor& desc = node->Descriptor;
+
+    if (desc.UserVa && desc.Mdl) {
+        PEPROCESS currentProcess = PsGetCurrentProcess();
+        if (desc.OwningProcess && desc.OwningProcess != currentProcess) {
+            unpd::mmu::ProcessAttachmentGuard guard(desc.OwningProcess);
+            __try {
+                MmUnmapLockedPages(desc.UserVa, desc.Mdl);
+            } __except (EXCEPTION_EXECUTE_HANDLER) {
+                // Ignore exception on unmap during shutdown/teardown
+            }
+        } else {
+            __try {
+                MmUnmapLockedPages(desc.UserVa, desc.Mdl);
+            } __except (EXCEPTION_EXECUTE_HANDLER) {
+            }
+        }
+        desc.UserVa = NULL;
+    }
+
+    if (desc.Mdl) {
+        MmFreePagesFromMdl(desc.Mdl);
+        IoFreeMdl(desc.Mdl);
+        desc.Mdl = NULL;
+    }
+
+    if (desc.OwningProcess) {
+        ObDereferenceObject(desc.OwningProcess);
+        desc.OwningProcess = NULL;
+    }
+
+    ExFreePoolWithTag(node, 'NDPU');
+}
+
 void MdlMemoryEngine::Shutdown() noexcept {
     if (!m_initialized) return;
 
@@ -92,40 +129,48 @@ void MdlMemoryEngine::Shutdown() noexcept {
 
     while (!IsListEmpty(&m_sessionListHead)) {
         PLIST_ENTRY entry = RemoveHeadList(&m_sessionListHead);
+        auto* node = CONTAINING_RECORD(entry, SessionListNode, ListEntry);
+        InterlockedExchange(&node->Descriptor.IsTornDown, 1);
         KeReleaseSpinLock(&m_lock, oldIrql);
 
-        auto* node = CONTAINING_RECORD(entry, SessionListNode, ListEntry);
-        SharedSessionDescriptor& desc = node->Descriptor;
-
-        if (desc.UserVa && desc.Mdl) {
-            PEPROCESS currentProcess = PsGetCurrentProcess();
-            if (desc.OwningProcess && desc.OwningProcess != currentProcess) {
-                unpd::mmu::ProcessAttachmentGuard guard(desc.OwningProcess);
-                MmUnmapLockedPages(desc.UserVa, desc.Mdl);
-            } else {
-                MmUnmapLockedPages(desc.UserVa, desc.Mdl);
-            }
-            desc.UserVa = NULL;
+        LONG refs = InterlockedDecrement(&node->Descriptor.ReferenceCount);
+        if (refs == 0) {
+            DestroySessionNode(node);
         }
-
-        if (desc.Mdl) {
-            MmFreePagesFromMdl(desc.Mdl);
-            IoFreeMdl(desc.Mdl);
-            desc.Mdl = NULL;
-        }
-
-        if (desc.OwningProcess) {
-            ObDereferenceObject(desc.OwningProcess);
-            desc.OwningProcess = NULL;
-        }
-
-        ExFreePoolWithTag(node, 'NDPU');
 
         KeAcquireSpinLock(&m_lock, &oldIrql);
     }
 
     KeReleaseSpinLock(&m_lock, oldIrql);
     m_initialized = false;
+}
+
+SessionListNode* MdlMemoryEngine::AcquireSessionReference(uint64_t sessionId) noexcept {
+    if (sessionId == 0) return nullptr;
+
+    KIRQL oldIrql;
+    KeAcquireSpinLock(&m_lock, &oldIrql);
+
+    for (PLIST_ENTRY curr = m_sessionListHead.Flink; curr != &m_sessionListHead; curr = curr->Flink) {
+        auto* node = CONTAINING_RECORD(curr, SessionListNode, ListEntry);
+        if (node->Descriptor.SessionId == sessionId && node->Descriptor.IsTornDown == 0) {
+            InterlockedIncrement(&node->Descriptor.ReferenceCount);
+            KeReleaseSpinLock(&m_lock, oldIrql);
+            return node;
+        }
+    }
+
+    KeReleaseSpinLock(&m_lock, oldIrql);
+    return nullptr;
+}
+
+void MdlMemoryEngine::ReleaseSessionReference(SessionListNode* node) noexcept {
+    if (!node) return;
+
+    LONG refs = InterlockedDecrement(&node->Descriptor.ReferenceCount);
+    if (refs == 0 && node->Descriptor.IsTornDown == 1) {
+        DestroySessionNode(node);
+    }
 }
 
 kstd::expected<SharedSessionDescriptor> MdlMemoryEngine::AllocateSharedSession(ULONG pageCount) noexcept {
@@ -188,8 +233,10 @@ kstd::expected<SharedSessionDescriptor> MdlMemoryEngine::AllocateSharedSession(U
     PEPROCESS currentProc = PsGetCurrentProcess();
     ObReferenceObject(currentProc);
 
+    uint64_t sessionId = static_cast<uint64_t>(InterlockedIncrement64(&m_nextSessionId));
+
     SharedSessionDescriptor desc{};
-    desc.SessionId = m_nextSessionId++;
+    desc.SessionId = sessionId;
     desc.Mode = MemoryMode::PhysicalMdlZeroCopy;
     desc.Mdl = mdl;
     desc.KernelVa = NULL;
@@ -200,6 +247,8 @@ kstd::expected<SharedSessionDescriptor> MdlMemoryEngine::AllocateSharedSession(U
     desc.SwapCounter = 0;
     desc.SectionHandle = NULL;
     desc.OwningProcess = currentProc;
+    desc.ReferenceCount = 1; // Initial reference held by session list
+    desc.IsTornDown = 0;
 
     node->Descriptor = desc;
 
@@ -233,28 +282,12 @@ NTSTATUS MdlMemoryEngine::FreeSharedSession(uint64_t sessionId) noexcept {
         return STATUS_NOT_FOUND;
     }
 
-    SharedSessionDescriptor desc = targetNode->Descriptor;
-
-    if (desc.UserVa && desc.Mdl) {
-        PEPROCESS currentProcess = PsGetCurrentProcess();
-        if (desc.OwningProcess && desc.OwningProcess != currentProcess) {
-            unpd::mmu::ProcessAttachmentGuard guard(desc.OwningProcess);
-            MmUnmapLockedPages(desc.UserVa, desc.Mdl);
-        } else {
-            MmUnmapLockedPages(desc.UserVa, desc.Mdl);
-        }
+    InterlockedExchange(&targetNode->Descriptor.IsTornDown, 1);
+    LONG refs = InterlockedDecrement(&targetNode->Descriptor.ReferenceCount);
+    if (refs == 0) {
+        DestroySessionNode(targetNode);
     }
 
-    if (desc.Mdl) {
-        MmFreePagesFromMdl(desc.Mdl);
-        IoFreeMdl(desc.Mdl);
-    }
-
-    if (desc.OwningProcess) {
-        ObDereferenceObject(desc.OwningProcess);
-    }
-
-    ExFreePoolWithTag(targetNode, 'NDPU');
     return STATUS_SUCCESS;
 }
 
@@ -264,38 +297,40 @@ NTSTATUS MdlMemoryEngine::SwapBuffers(
     uint32_t& outStandby,
     uint64_t& outSwaps
 ) noexcept {
-    KIRQL oldIrql;
-    KeAcquireSpinLock(&m_lock, &oldIrql);
-
-    for (PLIST_ENTRY curr = m_sessionListHead.Flink; curr != &m_sessionListHead; curr = curr->Flink) {
-        auto* node = CONTAINING_RECORD(curr, SessionListNode, ListEntry);
-        if (node->Descriptor.SessionId == sessionId) {
-            LONG current = node->Descriptor.ActiveBufferIndex;
-            LONG next = (current == 0) ? 1 : 0;
-            InterlockedExchange(&node->Descriptor.ActiveBufferIndex, next);
-            UnpdMemoryFence();
-
-            LONG64 totalSwaps = InterlockedIncrement64(&node->Descriptor.SwapCounter);
-
-            outActive = static_cast<uint32_t>(next);
-            outStandby = static_cast<uint32_t>(current);
-            outSwaps = static_cast<uint64_t>(totalSwaps);
-
-            KeReleaseSpinLock(&m_lock, oldIrql);
-            return STATUS_SUCCESS;
-        }
+    SessionListNode* node = AcquireSessionReference(sessionId);
+    if (!node) {
+        return STATUS_NOT_FOUND;
     }
 
-    KeReleaseSpinLock(&m_lock, oldIrql);
-    return STATUS_NOT_FOUND;
+    LONG current = node->Descriptor.ActiveBufferIndex;
+    LONG next = (current == 0) ? 1 : 0;
+    InterlockedExchange(&node->Descriptor.ActiveBufferIndex, next);
+    UnpdMemoryFence();
+
+    LONG64 totalSwaps = InterlockedIncrement64(&node->Descriptor.SwapCounter);
+
+    outActive = static_cast<uint32_t>(next);
+    outStandby = static_cast<uint32_t>(current);
+    outSwaps = static_cast<uint64_t>(totalSwaps);
+
+    ReleaseSessionReference(node);
+    return STATUS_SUCCESS;
 }
 
 // ============================================================================
-// SlabMemoryEngine Implementation
+// SlabMemoryEngine Implementation (Opaque Tokens & Double-Free Protection)
 // ============================================================================
 
 SlabMemoryEngine::SlabMemoryEngine() noexcept
-    : m_initialized(false) {}
+    : m_nextSlot(0), m_initialized(false) {
+    KeInitializeSpinLock(&m_tableLock);
+    for (size_t i = 0; i < MAX_SLAB_HANDLES; ++i) {
+        m_handleTable[i].BlockAddress = nullptr;
+        m_handleTable[i].BlockClass = 0;
+        m_handleTable[i].Generation = 1;
+        m_handleTable[i].InUse = 0;
+    }
+}
 
 SlabMemoryEngine::~SlabMemoryEngine() noexcept {
     Shutdown();
@@ -323,6 +358,24 @@ NTSTATUS SlabMemoryEngine::Initialize() noexcept {
 void SlabMemoryEngine::Shutdown() noexcept {
     if (!m_initialized) return;
 
+    KIRQL oldIrql;
+    KeAcquireSpinLock(&m_tableLock, &oldIrql);
+
+    for (size_t slot = 0; slot < MAX_SLAB_HANDLES; ++slot) {
+        if (m_handleTable[slot].InUse == 1 && m_handleTable[slot].BlockAddress) {
+            uint32_t bClass = m_handleTable[slot].BlockClass;
+            PVOID blockPtr = m_handleTable[slot].BlockAddress;
+            m_handleTable[slot].BlockAddress = nullptr;
+            m_handleTable[slot].InUse = 0;
+
+            if (bClass < SLAB_CLASSES) {
+                ExFreeToNPagedLookasideList(&m_slabLookaside[bClass], blockPtr);
+            }
+        }
+    }
+
+    KeReleaseSpinLock(&m_tableLock, oldIrql);
+
     for (size_t i = 0; i < SLAB_CLASSES; ++i) {
         ExDeleteNPagedLookasideList(&m_slabLookaside[i]);
     }
@@ -340,21 +393,77 @@ kstd::expected<uint64_t> SlabMemoryEngine::AllocateSlab(uint32_t blockClass, uin
         return kstd::expected<uint64_t>::error(STATUS_INSUFFICIENT_RESOURCES);
     }
 
+    KIRQL oldIrql;
+    KeAcquireSpinLock(&m_tableLock, &oldIrql);
+
+    uint32_t foundSlot = MAX_SLAB_HANDLES;
+    for (size_t i = 0; i < MAX_SLAB_HANDLES; ++i) {
+        uint32_t slot = (static_cast<uint32_t>(m_nextSlot) + static_cast<uint32_t>(i)) % MAX_SLAB_HANDLES;
+        if (m_handleTable[slot].InUse == 0) {
+            foundSlot = slot;
+            m_nextSlot = (slot + 1) % MAX_SLAB_HANDLES;
+            break;
+        }
+    }
+
+    if (foundSlot >= MAX_SLAB_HANDLES) {
+        KeReleaseSpinLock(&m_tableLock, oldIrql);
+        ExFreeToNPagedLookasideList(&m_slabLookaside[blockClass], ptr);
+        return kstd::expected<uint64_t>::error(STATUS_INSUFFICIENT_RESOURCES);
+    }
+
+    m_handleTable[foundSlot].BlockAddress = ptr;
+    m_handleTable[foundSlot].BlockClass = blockClass;
+    m_handleTable[foundSlot].InUse = 1;
+    uint32_t gen = m_handleTable[foundSlot].Generation;
+
+    KeReleaseSpinLock(&m_tableLock, oldIrql);
+
     outBlockSize = SLAB_SIZES[blockClass];
-    return reinterpret_cast<uint64_t>(ptr);
+
+    // Encode Opaque Token Handle: Class (8b) | Slot (24b) | Generation (32b)
+    uint64_t opaqueHandle = (static_cast<uint64_t>(blockClass) << 56) |
+                            (static_cast<uint64_t>(foundSlot & 0xFFFFFF) << 32) |
+                            (static_cast<uint64_t>(gen));
+
+    return opaqueHandle;
 }
 
 NTSTATUS SlabMemoryEngine::FreeSlab(uint64_t slabHandle, uint32_t blockSize) noexcept {
     if (slabHandle == 0) return STATUS_INVALID_PARAMETER;
 
-    for (size_t i = 0; i < SLAB_CLASSES; ++i) {
-        if (SLAB_SIZES[i] == blockSize) {
-            PVOID ptr = reinterpret_cast<PVOID>(slabHandle);
-            ExFreeToNPagedLookasideList(&m_slabLookaside[i], ptr);
-            return STATUS_SUCCESS;
-        }
+    uint32_t blockClass = static_cast<uint32_t>((slabHandle >> 56) & 0xFF);
+    uint32_t slot = static_cast<uint32_t>((slabHandle >> 32) & 0xFFFFFF);
+    uint32_t gen = static_cast<uint32_t>(slabHandle & 0xFFFFFFFF);
+
+    if (blockClass >= SLAB_CLASSES || slot >= MAX_SLAB_HANDLES) {
+        return STATUS_INVALID_HANDLE;
     }
-    return STATUS_INVALID_PARAMETER;
+
+    if (SLAB_SIZES[blockClass] != blockSize) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    KIRQL oldIrql;
+    KeAcquireSpinLock(&m_tableLock, &oldIrql);
+
+    if (m_handleTable[slot].InUse == 0 ||
+        m_handleTable[slot].Generation != gen ||
+        m_handleTable[slot].BlockClass != blockClass ||
+        m_handleTable[slot].BlockAddress == nullptr) {
+        KeReleaseSpinLock(&m_tableLock, oldIrql);
+        return STATUS_INVALID_HANDLE; // Detects Double Free and Stale Handles safely
+    }
+
+    PVOID blockPtr = m_handleTable[slot].BlockAddress;
+    m_handleTable[slot].BlockAddress = nullptr;
+    m_handleTable[slot].InUse = 0;
+    m_handleTable[slot].Generation = (m_handleTable[slot].Generation == 0xFFFFFFFF) ? 1 : (m_handleTable[slot].Generation + 1);
+
+    KeReleaseSpinLock(&m_tableLock, oldIrql);
+
+    ExFreeToNPagedLookasideList(&m_slabLookaside[blockClass], blockPtr);
+    return STATUS_SUCCESS;
 }
 
 // ============================================================================
