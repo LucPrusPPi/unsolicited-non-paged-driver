@@ -75,6 +75,7 @@ UnpdDeviceControl(
         status = UnpdHandleSlabFree(devExt, Irp, irpSp, &information);
         break;
 
+#if UNPD_FEATURE_CR3_PML4_OPERATIONS
     case IOCTL_UNPD_READ_PROCESS_CR3:
         status = UnpdHandleReadProcessCr3(devExt, Irp, irpSp, &information);
         break;
@@ -82,17 +83,30 @@ UnpdDeviceControl(
     case IOCTL_UNPD_WRITE_PROCESS_CR3:
         status = UnpdHandleWriteProcessCr3(devExt, Irp, irpSp, &information);
         break;
+#endif
 
+#if UNPD_FEATURE_KERNEL_APC_INJECTION
     case IOCTL_UNPD_QUEUE_KAPC:
         status = UnpdHandleQueueApc(devExt, Irp, irpSp, &information);
         break;
+#endif
 
+#if UNPD_FEATURE_STEALTH_CLEANERS
     case IOCTL_UNPD_CLEAN_PIDDB:
         status = UnpdHandleCleanPiDdb(devExt, Irp, irpSp, &information);
         break;
 
     case IOCTL_UNPD_CLEAN_UNLOADED:
         status = UnpdHandleCleanUnloaded(devExt, Irp, irpSp, &information);
+        break;
+#endif
+
+    case IOCTL_UNPD_SIMD_PATTERN_SCAN:
+        status = UnpdHandleSimdPatternScan(devExt, Irp, irpSp, &information);
+        break;
+
+    case IOCTL_UNPD_RESOLVE_VMT:
+        status = UnpdHandleResolveVmt(devExt, Irp, irpSp, &information);
         break;
 
     default:

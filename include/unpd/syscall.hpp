@@ -164,6 +164,86 @@ public:
         }
         return false;
     }
+
+    static bool SyscallSimdPatternScan(
+        HANDLE gateway,
+        uint64_t baseAddress,
+        uint64_t bufferSize,
+        const uint8_t* pattern,
+        uint32_t patternSize,
+        const char* mask,
+        uint64_t& outMatchAddress
+    ) noexcept {
+        if (gateway == INVALID_HANDLE_VALUE || baseAddress == 0 || bufferSize == 0 || !pattern || !mask || patternSize > 64) {
+            return false;
+        }
+
+        UNPD_SIMD_SCAN_REQUEST req{};
+        req.Magic = UNPD_MAGIC_REQUEST;
+        req.BaseAddress = baseAddress;
+        req.BufferSize = bufferSize;
+        req.PatternSize = patternSize;
+        memcpy(req.Pattern, pattern, patternSize);
+        strncpy_s(req.Mask, mask, _TRUNCATE);
+
+        UNPD_SIMD_SCAN_RESPONSE resp{};
+        DWORD bytesReturned = 0;
+
+        bool ok = DeviceIoControl(
+            gateway,
+            IOCTL_UNPD_SIMD_PATTERN_SCAN,
+            &req, sizeof(req),
+            &resp, sizeof(resp),
+            &bytesReturned,
+            nullptr
+        );
+
+        if (ok && bytesReturned == sizeof(resp) && resp.Magic == UNPD_MAGIC_RESPONSE) {
+            outMatchAddress = resp.MatchAddress;
+            return resp.Status == UNPD_STATUS_SUCCESS;
+        }
+        return false;
+    }
+
+    static bool SyscallResolveVmt(
+        HANDLE gateway,
+        uint64_t moduleBase,
+        uint64_t moduleSize,
+        uint64_t codeSectionStart,
+        uint64_t codeSectionSize,
+        uint64_t& outVtableAddr,
+        uint32_t& outMethodCount,
+        uint64_t& outFirstMethodAddr
+    ) noexcept {
+        if (gateway == INVALID_HANDLE_VALUE || moduleBase == 0) return false;
+
+        UNPD_RESOLVE_VMT_REQUEST req{};
+        req.Magic = UNPD_MAGIC_REQUEST;
+        req.ModuleBase = moduleBase;
+        req.ModuleSize = moduleSize;
+        req.CodeSectionStart = codeSectionStart;
+        req.CodeSectionSize = codeSectionSize;
+
+        UNPD_RESOLVE_VMT_RESPONSE resp{};
+        DWORD bytesReturned = 0;
+
+        bool ok = DeviceIoControl(
+            gateway,
+            IOCTL_UNPD_RESOLVE_VMT,
+            &req, sizeof(req),
+            &resp, sizeof(resp),
+            &bytesReturned,
+            nullptr
+        );
+
+        if (ok && bytesReturned == sizeof(resp) && resp.Magic == UNPD_MAGIC_RESPONSE) {
+            outVtableAddr = resp.VtableAddress;
+            outMethodCount = resp.MethodCount;
+            outFirstMethodAddr = resp.FirstMethodAddress;
+            return resp.Status == UNPD_STATUS_SUCCESS;
+        }
+        return false;
+    }
 };
 
 } // namespace unpd::syscall

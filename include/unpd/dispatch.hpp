@@ -155,5 +155,19 @@ NTSTATUS UnpdHandleCleanUnloaded(
     ULONG_PTR* information
 );
 
+NTSTATUS UnpdHandleSimdPatternScan(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+);
+
+NTSTATUS UnpdHandleResolveVmt(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+);
+
 #endif // _KERNEL_MODE
 #endif // UNPD_DISPATCH_HPP

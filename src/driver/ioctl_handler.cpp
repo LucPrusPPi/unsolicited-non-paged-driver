@@ -616,3 +616,86 @@ NTSTATUS UnpdHandleCleanUnloaded(
     *information = sizeof(UNPD_STEALTH_UNLOADED_RESPONSE);
     return status;
 }
+
+#include "unpd/simd/simd_engine.hpp"
+#include "unpd/mmu/vmt_resolver.hpp"
+
+NTSTATUS UnpdHandleSimdPatternScan(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+) {
+    UNREFERENCED_PARAMETER(devExt);
+
+    ULONG inLen = irpSp->Parameters.DeviceIoControl.InputBufferLength;
+    ULONG outLen = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    auto* inBuf = static_cast<PUNPD_SIMD_SCAN_REQUEST>(irp->AssociatedIrp.SystemBuffer);
+    auto* outBuf = static_cast<PUNPD_SIMD_SCAN_RESPONSE>(irp->AssociatedIrp.SystemBuffer);
+
+    if (inLen < sizeof(UNPD_SIMD_SCAN_REQUEST) || outLen < sizeof(UNPD_SIMD_SCAN_RESPONSE)) {
+        *information = 0;
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    if (inBuf->Magic != UNPD_MAGIC_REQUEST || inBuf->BaseAddress == 0 || inBuf->BufferSize == 0) {
+        *information = 0;
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    const void* match = unpd::simd::SimdEngine::ScanPattern(
+        reinterpret_cast<const void*>(inBuf->BaseAddress),
+        inBuf->BufferSize,
+        inBuf->Pattern,
+        inBuf->Mask
+    );
+
+    outBuf->Magic = UNPD_MAGIC_RESPONSE;
+    outBuf->Status = (match != nullptr) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_NOT_FOUND;
+    outBuf->MatchAddress = reinterpret_cast<uint64_t>(match);
+
+    *information = sizeof(UNPD_SIMD_SCAN_RESPONSE);
+    return (match != nullptr) ? STATUS_SUCCESS : STATUS_NOT_FOUND;
+}
+
+NTSTATUS UnpdHandleResolveVmt(
+    PUNPD_DEVICE_EXTENSION devExt,
+    PIRP irp,
+    PIO_STACK_LOCATION irpSp,
+    ULONG_PTR* information
+) {
+    UNREFERENCED_PARAMETER(devExt);
+
+    ULONG inLen = irpSp->Parameters.DeviceIoControl.InputBufferLength;
+    ULONG outLen = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
+    auto* inBuf = static_cast<PUNPD_RESOLVE_VMT_REQUEST>(irp->AssociatedIrp.SystemBuffer);
+    auto* outBuf = static_cast<PUNPD_RESOLVE_VMT_RESPONSE>(irp->AssociatedIrp.SystemBuffer);
+
+    if (inLen < sizeof(UNPD_RESOLVE_VMT_REQUEST) || outLen < sizeof(UNPD_RESOLVE_VMT_RESPONSE)) {
+        *information = 0;
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    if (inBuf->Magic != UNPD_MAGIC_REQUEST || inBuf->ModuleBase == 0) {
+        *information = 0;
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    unpd::mmu::VmtResolver::VmtInfo info{};
+    bool found = unpd::mmu::VmtResolver::ResolveVtable(
+        reinterpret_cast<const void*>(inBuf->ModuleBase),
+        inBuf->ModuleSize,
+        inBuf->CodeSectionStart,
+        inBuf->CodeSectionSize,
+        info
+    );
+
+    outBuf->Magic = UNPD_MAGIC_RESPONSE;
+    outBuf->Status = found ? UNPD_STATUS_SUCCESS : UNPD_STATUS_NOT_FOUND;
+    outBuf->VtableAddress = info.VtableAddress;
+    outBuf->MethodCount = info.MethodCount;
+    outBuf->FirstMethodAddress = info.FirstMethodAddress;
+
+    *information = sizeof(UNPD_RESOLVE_VMT_RESPONSE);
+    return found ? STATUS_SUCCESS : STATUS_NOT_FOUND;
+}
