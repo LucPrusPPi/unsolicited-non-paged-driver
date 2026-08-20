@@ -25,6 +25,25 @@ TEST(SimdEngineTest, PatternScanAVX2OrScalar) {
     EXPECT_EQ(match, &buffer[64]);
 }
 
+TEST(SimdEngineTest, PatternScanAVX512Emulated) {
+    uint8_t buffer[256]{};
+    for (size_t i = 0; i < sizeof(buffer); ++i) buffer[i] = static_cast<uint8_t>(i);
+
+    // Embed pattern at index 180
+    buffer[180] = 0xCA;
+    buffer[181] = 0xFE;
+    buffer[182] = 0xBA;
+    buffer[183] = 0xBE;
+
+    uint8_t pattern[] = { 0xCA, 0xFE, 0xBA, 0xBE };
+    const char mask[] = "xxxx";
+
+    const void* match = unpd::simd::SimdEngine::ScanPatternAVX512Emulated(buffer, sizeof(buffer), pattern, mask);
+
+    ASSERT_NE(match, nullptr);
+    EXPECT_EQ(match, &buffer[180]);
+}
+
 TEST(SimdEngineTest, FastZeroAndCopy) {
     uint8_t src[256];
     uint8_t dest[256];

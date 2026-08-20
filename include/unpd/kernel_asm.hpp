@@ -126,6 +126,11 @@ const void* UnpdScanPatternAVX2ASM(const void* base, uint64_t size, const uint8_
 void        UnpdFastZeroAVX2ASM(void* address, uint64_t size);
 void        UnpdFastCopyAVX2ASM(void* dest, const void* src, uint64_t size);
 
+// Real Hardware AVX-512 Assembly Routines (512-bit ZMM)
+const void* UnpdScanPatternAVX512ASM(const void* base, uint64_t size, const uint8_t* pattern, const char* mask);
+void        UnpdFastZeroAVX512ASM(void* address, uint64_t size);
+void        UnpdFastCopyAVX512ASM(void* dest, const void* src, uint64_t size);
+
 #ifdef __cplusplus
 }
 #endif

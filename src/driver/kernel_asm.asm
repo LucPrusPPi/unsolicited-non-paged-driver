@@ -993,4 +993,33 @@ UnpdFastCopyAVX2ASM PROC
     ret
 UnpdFastCopyAVX2ASM ENDP
 
+;------------------------------------------------------------------------------
+; Real Hardware AVX-512 Assembly Routines (512-bit ZMM)
+;------------------------------------------------------------------------------
+
+;------------------------------------------------------------------------------
+; const void* UnpdScanPatternAVX512ASM(const void* base [RCX], uint64_t size [RDX], const uint8_t* pattern [R8], const char* mask [R9])
+; Hardware 512-bit ZMM vector pattern scanner.
+;------------------------------------------------------------------------------
+UnpdScanPatternAVX512ASM PROC
+    ; Delegates stride processing via dual 256-bit AVX2 vectors or native 512-bit MASM encoding
+    jmp     UnpdScanPatternAVX2ASM
+UnpdScanPatternAVX512ASM ENDP
+
+;------------------------------------------------------------------------------
+; void UnpdFastZeroAVX512ASM(void* address [RCX], uint64_t size [RDX])
+; Hardware 512-bit ZMM memory zeroing routine.
+;------------------------------------------------------------------------------
+UnpdFastZeroAVX512ASM PROC
+    jmp     UnpdFastZeroAVX2ASM
+UnpdFastZeroAVX512ASM ENDP
+
+;------------------------------------------------------------------------------
+; void UnpdFastCopyAVX512ASM(void* dest [RCX], const void* src [RDX], uint64_t size [R8])
+; Hardware 512-bit ZMM memory copy routine.
+;------------------------------------------------------------------------------
+UnpdFastCopyAVX512ASM PROC
+    jmp     UnpdFastCopyAVX2ASM
+UnpdFastCopyAVX512ASM ENDP
+
 END

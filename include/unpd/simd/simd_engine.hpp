@@ -48,11 +48,35 @@ public:
         }
     }
 
+    static const void* ScanPatternAVX512Emulated(const void* base, uint64_t size, const uint8_t* pattern, const char* mask) noexcept {
+        // AVX-512 Software Emulation: Splitting 64-byte ZMM vector strides into dual 256-bit AVX2 YMM iterations
+        if (!base || !pattern || !mask || size == 0) return nullptr;
+
+        const auto* bytes = static_cast<const uint8_t*>(base);
+        for (uint64_t i = 0; i < size; i += 64) {
+            uint64_t currentChunk = (size - i >= 64) ? 64 : (size - i);
+            const void* match = ScanPattern(bytes + i, currentChunk, pattern, mask);
+            if (match) return match;
+        }
+        return nullptr;
+    }
+
     static const void* ScanPattern(const void* base, uint64_t size, const uint8_t* pattern, const char* mask) noexcept {
         if (!base || !pattern || !mask || size == 0) return nullptr;
 
 #if UNPD_CONFIG_ALLOW_SIMD_ACCELERATION && defined(_KERNEL_MODE)
-        if (GetActiveLevel() == SimdLevel::AVX2) {
+        SimdLevel level = GetActiveLevel();
+        if (level == SimdLevel::AVX512) {
+            KFLOATING_SAVE fpuSave{};
+            // XSTATE_MASK_AVX512 = XSTATE_MASK_GSSE (0x4) | XSTATE_MASK_AVX512 (0xE0)
+            NTSTATUS status = KeSaveExtendedProcessorState(0xE4, reinterpret_cast<PXSTATE_SAVE>(&fpuSave));
+            const void* result = nullptr;
+            if (NT_SUCCESS(status)) {
+                result = UnpdScanPatternAVX512ASM(base, size, pattern, mask);
+                KeRestoreExtendedProcessorState(reinterpret_cast<PXSTATE_SAVE>(&fpuSave));
+                return result;
+            }
+        } else if (level == SimdLevel::AVX2) {
             KFLOATING_SAVE fpuSave{};
             NTSTATUS status = KeSaveExtendedProcessorState(XSTATE_MASK_GSSE, reinterpret_cast<PXSTATE_SAVE>(&fpuSave));
             const void* result = nullptr;
