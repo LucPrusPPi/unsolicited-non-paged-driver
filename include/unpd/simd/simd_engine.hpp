@@ -122,6 +122,12 @@ public:
         }
 #endif
         UnpdFastCopy64(dest, src, size / 8);
+        uint64_t remainder = size % 8;
+        if (remainder > 0) {
+            auto* d = static_cast<uint8_t*>(dest) + (size - remainder);
+            const auto* s = static_cast<const uint8_t*>(src) + (size - remainder);
+            for (uint64_t i = 0; i < remainder; ++i) d[i] = s[i];
+        }
     }
 };
 

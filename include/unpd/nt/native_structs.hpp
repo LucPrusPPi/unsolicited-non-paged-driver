@@ -10,7 +10,10 @@
 #include <ntddk.h>
 #else
 #include <windows.h>
-#include <winternl.h>
+typedef ULONG_PTR EX_PUSH_LOCK;
+#ifndef STATUS_NOT_FOUND
+#define STATUS_NOT_FOUND ((NTSTATUS)0xC0000225L)
+#endif
 #endif
 
 namespace unpd::nt {
