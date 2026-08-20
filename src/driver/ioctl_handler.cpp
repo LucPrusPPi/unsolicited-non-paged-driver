@@ -423,21 +423,22 @@ NTSTATUS UnpdHandleReadProcessCr3(
         return STATUS_INVALID_PARAMETER;
     }
 
+    SIZE_T bytesRead = 0;
+    NTSTATUS status = STATUS_SUCCESS;
+
     __try {
         ProbeForWrite(reinterpret_cast<PVOID>(inBuf->UserBuffer), static_cast<SIZE_T>(inBuf->Size), 1);
+        status = unpd::mmu::Cr3Walker::ReadProcessMemoryCr3(
+            inBuf->Cr3,
+            inBuf->VirtualAddress,
+            reinterpret_cast<PVOID>(inBuf->UserBuffer),
+            static_cast<SIZE_T>(inBuf->Size),
+            &bytesRead
+        );
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         *information = 0;
         return GetExceptionCode();
     }
-
-    SIZE_T bytesRead = 0;
-    NTSTATUS status = unpd::mmu::Cr3Walker::ReadProcessMemoryCr3(
-        inBuf->Cr3,
-        inBuf->VirtualAddress,
-        reinterpret_cast<PVOID>(inBuf->UserBuffer),
-        static_cast<SIZE_T>(inBuf->Size),
-        &bytesRead
-    );
 
     outBuf->Magic = UNPD_MAGIC_RESPONSE;
     outBuf->Status = NT_SUCCESS(status) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_INVALID_PARAM;
@@ -470,21 +471,22 @@ NTSTATUS UnpdHandleWriteProcessCr3(
         return STATUS_INVALID_PARAMETER;
     }
 
+    SIZE_T bytesWritten = 0;
+    NTSTATUS status = STATUS_SUCCESS;
+
     __try {
         ProbeForRead(reinterpret_cast<PVOID>(inBuf->UserBuffer), static_cast<SIZE_T>(inBuf->Size), 1);
+        status = unpd::mmu::Cr3Walker::WriteProcessMemoryCr3(
+            inBuf->Cr3,
+            inBuf->VirtualAddress,
+            reinterpret_cast<const void*>(inBuf->UserBuffer),
+            static_cast<SIZE_T>(inBuf->Size),
+            &bytesWritten
+        );
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         *information = 0;
         return GetExceptionCode();
     }
-
-    SIZE_T bytesWritten = 0;
-    NTSTATUS status = unpd::mmu::Cr3Walker::WriteProcessMemoryCr3(
-        inBuf->Cr3,
-        inBuf->VirtualAddress,
-        reinterpret_cast<const void*>(inBuf->UserBuffer),
-        static_cast<SIZE_T>(inBuf->Size),
-        &bytesWritten
-    );
 
     outBuf->Magic = UNPD_MAGIC_RESPONSE;
     outBuf->Status = NT_SUCCESS(status) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_INVALID_PARAM;

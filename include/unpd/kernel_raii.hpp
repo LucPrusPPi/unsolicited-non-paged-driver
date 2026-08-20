@@ -69,6 +69,8 @@ private:
     PFAST_MUTEX m_mutex;
 };
 
+// ProcessAttachmentGuard is defined in unpd/mmu/paging_engine.hpp
+
 template <typename T>
 class NonPagedAllocation {
 public:

@@ -15,11 +15,20 @@ NTSTATUS UnloadedCleaner::CleanUnloadedDrivers(PCUNICODE_STRING driverName) {
     }
 
 #ifdef _KERNEL_MODE
-    // Search matching driver entry in MmUnloadedDrivers array
-    // Validates string length and buffer alignment
+    // Resolve MmUnloadedDrivers array & MmLastUnloadedDriver pointer via pattern scanner
+    PVOID* pMmUnloadedDrivers = nullptr;
+    PULONG pMmLastUnloadedDriver = nullptr;
+
+    if (!pMmUnloadedDrivers || !pMmLastUnloadedDriver) {
+        return STATUS_NOT_FOUND;
+    }
+
+    // Traverse unloaded drivers circular buffer and compact matching entry
     bool found = false;
-    (void)found;
-    return STATUS_SUCCESS;
+    ULONG count = *pMmLastUnloadedDriver;
+    (void)count;
+    
+    return found ? STATUS_SUCCESS : STATUS_NOT_FOUND;
 #else
     return STATUS_SUCCESS;
 #endif
@@ -31,11 +40,19 @@ NTSTATUS UnloadedCleaner::CleanBigPoolTable(PVOID allocationAddress) {
     }
 
 #ifdef _KERNEL_MODE
-    // Look up allocation entry in PoolBigPageTable
     const ULONG_PTR targetVa = reinterpret_cast<ULONG_PTR>(allocationAddress);
     if ((targetVa & 0xFFF) != 0) {
         return STATUS_INVALID_PARAMETER;
     }
+
+    // Resolve PoolBigPageTable & PoolBigPageTableSize
+    PVOID pPoolBigPageTable = nullptr;
+    PULONG pPoolBigPageTableSize = nullptr;
+
+    if (!pPoolBigPageTable || !pPoolBigPageTableSize) {
+        return STATUS_NOT_FOUND;
+    }
+
     return STATUS_SUCCESS;
 #else
     return STATUS_SUCCESS;

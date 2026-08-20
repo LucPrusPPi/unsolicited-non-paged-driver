@@ -1,4 +1,5 @@
 #include "unpd/page_engine.hpp"
+#include "unpd/mmu/paging_engine.hpp"
 #include "unpd/kernel_raii.hpp"
 
 static const uint32_t g_SlabSizes[4] = { 64, 256, 1024, 4096 };
@@ -222,7 +223,12 @@ NTSTATUS UnpdDestroySharedSession(
     }
 
     if (target->UserVa != nullptr && target->Mdl != nullptr) {
-        SafeMmUnmapLockedPages(target->UserVa, target->Mdl);
+        if (target->Process != nullptr) {
+            unpd::mmu::ProcessAttachmentGuard attachGuard(reinterpret_cast<PEPROCESS>(target->Process));
+            SafeMmUnmapLockedPages(target->UserVa, target->Mdl);
+        } else {
+            SafeMmUnmapLockedPages(target->UserVa, target->Mdl);
+        }
         target->UserVa = nullptr;
     }
 
