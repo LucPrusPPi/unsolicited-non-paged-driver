@@ -656,7 +656,7 @@ NTSTATUS UnpdHandleSimdPatternScan(
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    KPROCESSOR_MODE accessMode = (inBuf->BaseAddress < 0x7FFFFFFFFFFFULL) ? UserMode : KernelMode;
+    KPROCESSOR_MODE accessMode = static_cast<KPROCESSOR_MODE>((inBuf->BaseAddress < 0x7FFFFFFFFFFFULL) ? UserMode : KernelMode);
     bool pagesLocked = false;
 
     __try {
