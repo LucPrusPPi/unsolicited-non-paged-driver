@@ -51,15 +51,10 @@ jobs:
         run: |
           ninja -C build
 
-      - name: Run GoogleTest Suite (34 Tests)
+      - name: Run CTest Validation (114 Tests)
         shell: cmd
         run: |
-          .\build\bin\unpd_tests.exe --gtest_color=yes
-
-      - name: Run CTest Validation
-        shell: cmd
-        run: |
-          cd build && ctest --output-on-failure -C ${{ matrix.build_type }}
+          ctest --test-dir build -C ${{ matrix.build_type }} --output-on-failure
 
       - name: Upload Artifacts
         if: matrix.build_type == 'Release'
