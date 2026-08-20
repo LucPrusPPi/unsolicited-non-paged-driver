@@ -99,6 +99,7 @@ public:
 
     SessionListNode* AcquireSessionReference(uint64_t sessionId) noexcept;
     void ReleaseSessionReference(SessionListNode* node) noexcept;
+    void HandleProcessExit(HANDLE processId) noexcept;
 
 private:
     void DestroySessionNode(SessionListNode* node) noexcept;
@@ -223,6 +224,10 @@ public:
     // User Buffer Validation
     static NTSTATUS ValidateUserBuffer(PVOID userPtr, SIZE_T length, bool writeAccess) noexcept {
         return DirectNeitherEngine::ValidateUserBuffer(userPtr, length, writeAccess);
+    }
+
+    void HandleProcessExit(HANDLE processId) noexcept {
+        m_mdlEngine.HandleProcessExit(processId);
     }
 
     // Polymorphic Engine Accessors

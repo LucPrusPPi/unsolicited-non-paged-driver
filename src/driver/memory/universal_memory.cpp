@@ -173,6 +173,32 @@ void MdlMemoryEngine::ReleaseSessionReference(SessionListNode* node) noexcept {
     }
 }
 
+void MdlMemoryEngine::HandleProcessExit(HANDLE processId) noexcept {
+    if (!processId) return;
+
+    KIRQL oldIrql;
+    KeAcquireSpinLock(&m_lock, &oldIrql);
+
+    for (PLIST_ENTRY curr = m_sessionListHead.Flink; curr != &m_sessionListHead; curr = curr->Flink) {
+        auto* node = CONTAINING_RECORD(curr, SessionListNode, ListEntry);
+        if (node->Descriptor.OwningProcess) {
+            HANDLE pid = PsGetProcessId(node->Descriptor.OwningProcess);
+            if (pid == processId) {
+                // If process is exiting, safely unmap UserVa right now in current context
+                if (node->Descriptor.UserVa && node->Descriptor.Mdl) {
+                    __try {
+                        MmUnmapLockedPages(node->Descriptor.UserVa, node->Descriptor.Mdl);
+                    } __except (EXCEPTION_EXECUTE_HANDLER) {
+                    }
+                    node->Descriptor.UserVa = NULL;
+                }
+            }
+        }
+    }
+
+    KeReleaseSpinLock(&m_lock, oldIrql);
+}
+
 kstd::expected<SharedSessionDescriptor> MdlMemoryEngine::AllocateSharedSession(ULONG pageCount) noexcept {
     if (pageCount == 0 || pageCount > 256) {
         return kstd::expected<SharedSessionDescriptor>::error(STATUS_INVALID_PARAMETER);

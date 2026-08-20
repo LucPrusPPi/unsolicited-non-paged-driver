@@ -643,7 +643,20 @@ NTSTATUS UnpdHandleSimdPatternScan(
     const void* match = nullptr;
     __try {
         if (inBuf->BaseAddress < 0x7FFFFFFFFFFFULL) {
+            // User mode address range: Probe memory thoroughly
             ProbeForRead(reinterpret_cast<PVOID>(inBuf->BaseAddress), inBuf->BufferSize, 1);
+        } else {
+#ifdef _KERNEL_MODE
+            // Kernel address range: Validate every page in range is valid and resident to prevent BugCheck 0x50
+            const uintptr_t startPage = inBuf->BaseAddress & ~0xFFFULL;
+            const uintptr_t endPage = (inBuf->BaseAddress + inBuf->BufferSize - 1) & ~0xFFFULL;
+            for (uintptr_t page = startPage; page <= endPage; page += 0x1000) {
+                if (!MmIsAddressValid(reinterpret_cast<PVOID>(page))) {
+                    *information = 0;
+                    return STATUS_ACCESS_VIOLATION;
+                }
+            }
+#endif
         }
 
         match = unpd::simd::SimdEngine::ScanPattern(

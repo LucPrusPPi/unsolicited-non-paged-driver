@@ -7,6 +7,22 @@ extern "C" {
 }
 #endif
 
+#ifdef _KERNEL_MODE
+static PUNPD_DEVICE_EXTENSION g_DevExt = nullptr;
+
+static VOID ProcessNotifyCallbackEx(
+    PEPROCESS Process,
+    HANDLE ProcessId,
+    PPS_CREATE_NOTIFY_INFO CreateInfo
+) {
+    UNREFERENCED_PARAMETER(Process);
+    // If CreateInfo == NULL, the process is exiting
+    if (CreateInfo == NULL && g_DevExt != nullptr && g_DevExt->MemoryManager != nullptr) {
+        g_DevExt->MemoryManager->HandleProcessExit(ProcessId);
+    }
+}
+#endif
+
 extern "C"
 NTSTATUS
 DriverEntry(
@@ -79,8 +95,17 @@ DriverEntry(
         return status;
     }
 
+#ifdef _KERNEL_MODE
+    g_DevExt = devExt;
+    PsSetCreateProcessNotifyRoutineEx(ProcessNotifyCallbackEx, FALSE);
+#endif
+
     status = IoCreateSymbolicLink(&symlinkName, &deviceName);
     if (!NT_SUCCESS(status)) {
+#ifdef _KERNEL_MODE
+        PsSetCreateProcessNotifyRoutineEx(ProcessNotifyCallbackEx, TRUE);
+        g_DevExt = nullptr;
+#endif
         devExt->MemoryManager->Shutdown();
         devExt->MemoryManager->~UniversalMemoryManager();
         ExFreePoolWithTag(devExt->MemoryManager, 'NDPU');
@@ -108,6 +133,11 @@ DriverUnload(
 
     if (deviceObject != nullptr) {
         auto* devExt = static_cast<PUNPD_DEVICE_EXTENSION>(deviceObject->DeviceExtension);
+
+#ifdef _KERNEL_MODE
+        PsSetCreateProcessNotifyRoutineEx(ProcessNotifyCallbackEx, TRUE);
+        g_DevExt = nullptr;
+#endif
 
         IoDeleteSymbolicLink(&devExt->SymbolicLinkName);
 

@@ -28,7 +28,22 @@ NTSTATUS PhysicalMemory::ReadPhysicalAddress(ULONG64 physicalAddress, PVOID buff
             return STATUS_UNSUCCESSFUL;
         }
 
+        NTSTATUS copyStatus = STATUS_SUCCESS;
+#ifdef _KERNEL_MODE
+        __try {
+            RtlCopyMemory(dest + totalRead, mapping.Get(), chunk);
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            copyStatus = GetExceptionCode();
+        }
+#else
         memcpy(dest + totalRead, mapping.Get(), chunk);
+#endif
+
+        if (!NT_SUCCESS(copyStatus)) {
+            if (bytesRead) *bytesRead = totalRead;
+            return copyStatus;
+        }
+
         totalRead += chunk;
     }
 
@@ -59,7 +74,22 @@ NTSTATUS PhysicalMemory::WritePhysicalAddress(ULONG64 physicalAddress, const voi
             return STATUS_UNSUCCESSFUL;
         }
 
+        NTSTATUS copyStatus = STATUS_SUCCESS;
+#ifdef _KERNEL_MODE
+        __try {
+            RtlCopyMemory(mapping.Get(), src + totalWritten, chunk);
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            copyStatus = GetExceptionCode();
+        }
+#else
         memcpy(mapping.Get(), src + totalWritten, chunk);
+#endif
+
+        if (!NT_SUCCESS(copyStatus)) {
+            if (bytesWritten) *bytesWritten = totalWritten;
+            return copyStatus;
+        }
+
         totalWritten += chunk;
     }
 
