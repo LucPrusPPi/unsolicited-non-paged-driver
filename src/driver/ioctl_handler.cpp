@@ -641,24 +641,50 @@ NTSTATUS UnpdHandleSimdPatternScan(
     inBuf->Pattern[63] = 0;
 
     const void* match = nullptr;
-    __try {
-        if (inBuf->BaseAddress < 0x7FFFFFFFFFFFULL) {
-            // User mode address range: Probe memory thoroughly
-            ProbeForRead(reinterpret_cast<PVOID>(inBuf->BaseAddress), inBuf->BufferSize, 1);
-        } else {
-#ifdef _KERNEL_MODE
-            // Kernel address range: Validate every page in range is valid and resident to prevent BugCheck 0x50
-            const uintptr_t startPage = inBuf->BaseAddress & ~0xFFFULL;
-            const uintptr_t endPage = (inBuf->BaseAddress + inBuf->BufferSize - 1) & ~0xFFFULL;
-            for (uintptr_t page = startPage; page <= endPage; page += 0x1000) {
-                if (!MmIsAddressValid(reinterpret_cast<PVOID>(page))) {
-                    *information = 0;
-                    return STATUS_ACCESS_VIOLATION;
-                }
-            }
-#endif
-        }
 
+#ifdef _KERNEL_MODE
+    PMDL scanMdl = IoAllocateMdl(
+        reinterpret_cast<PVOID>(inBuf->BaseAddress),
+        static_cast<ULONG>(inBuf->BufferSize),
+        FALSE,
+        FALSE,
+        NULL
+    );
+
+    if (!scanMdl) {
+        *information = 0;
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    KPROCESSOR_MODE accessMode = (inBuf->BaseAddress < 0x7FFFFFFFFFFFULL) ? UserMode : KernelMode;
+    bool pagesLocked = false;
+
+    __try {
+        MmProbeAndLockPages(scanMdl, accessMode, IoReadAccess);
+        pagesLocked = true;
+
+        match = unpd::simd::SimdEngine::ScanPattern(
+            reinterpret_cast<const void*>(inBuf->BaseAddress),
+            inBuf->BufferSize,
+            inBuf->Pattern,
+            inBuf->Mask
+        );
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        if (pagesLocked) {
+            MmUnlockPages(scanMdl);
+            pagesLocked = false;
+        }
+        IoFreeMdl(scanMdl);
+        *information = 0;
+        return GetExceptionCode();
+    }
+
+    if (pagesLocked) {
+        MmUnlockPages(scanMdl);
+    }
+    IoFreeMdl(scanMdl);
+#else
+    __try {
         match = unpd::simd::SimdEngine::ScanPattern(
             reinterpret_cast<const void*>(inBuf->BaseAddress),
             inBuf->BufferSize,
@@ -669,6 +695,7 @@ NTSTATUS UnpdHandleSimdPatternScan(
         *information = 0;
         return GetExceptionCode();
     }
+#endif
 
     outBuf->Magic = UNPD_MAGIC_RESPONSE;
     outBuf->Status = (match != nullptr) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_NOT_FOUND;
