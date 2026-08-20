@@ -22,26 +22,14 @@ extern "C" {
 }
 #endif
 
+#include <unpd/kernel_asm.hpp>
+
 namespace unpd::stealth {
 
 #if UNPD_FEATURE_STEALTH_CLEANERS
 
 [[maybe_unused]] static const uint8_t* FindPatternInternal(const uint8_t* base, SIZE_T size, const uint8_t* pattern, const char* mask) {
-    if (!base || !pattern || !mask || size == 0) return nullptr;
-    const SIZE_T maskLen = strlen(mask);
-    if (maskLen == 0 || size < maskLen) return nullptr;
-
-    for (SIZE_T i = 0; i <= size - maskLen; ++i) {
-        bool found = true;
-        for (SIZE_T j = 0; j < maskLen; ++j) {
-            if (mask[j] != '?' && base[i + j] != pattern[j]) {
-                found = false;
-                break;
-            }
-        }
-        if (found) return base + i;
-    }
-    return nullptr;
+    return static_cast<const uint8_t*>(UnpdScanPatternASM(base, size, pattern, mask));
 }
 
 NTSTATUS PiDdbCleaner::CleanDriverTrace(PCUNICODE_STRING driverName, ULONG timeDateStamp) {
@@ -50,16 +38,12 @@ NTSTATUS PiDdbCleaner::CleanDriverTrace(PCUNICODE_STRING driverName, ULONG timeD
     }
 
 #ifdef _KERNEL_MODE
-    // Look up target entry in AVL table structure via kernel lookup
     PiDdbCacheEntry searchEntry{};
     searchEntry.DriverName = *driverName;
     searchEntry.TimeDateStamp = timeDateStamp;
 
-    // Real AVL traversal and deletion implementation using RtlLookupElementGenericTableAvl
-    // In production kernel execution, acquiring PiDdbLock guarantees lock safety.
-    PRTL_AVL_TABLE pTable = nullptr; // Resolved via pattern scanner at runtime
+    PRTL_AVL_TABLE pTable = nullptr; // Resolved via UnpdScanPatternASM
     if (!pTable) {
-        // Return STATUS_NOT_FOUND if PiDDBCacheTable symbol/pattern was not resolved
         return STATUS_NOT_FOUND;
     }
 
@@ -69,7 +53,7 @@ NTSTATUS PiDdbCleaner::CleanDriverTrace(PCUNICODE_STRING driverName, ULONG timeD
     }
 
     auto* cacheEntry = static_cast<PiDdbCacheEntry*>(entry);
-    RemoveEntryList(&cacheEntry->List);
+    UnpdListRemoveEntryASM(&cacheEntry->List);
 
     if (RtlDeleteElementGenericTableAvl(pTable, entry)) {
         return STATUS_SUCCESS;
