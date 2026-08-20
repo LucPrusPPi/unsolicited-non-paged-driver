@@ -22,7 +22,10 @@ public:
 ### 1. `MdlMemoryEngine` (Zero-Copy Physical MDL Mapping)
 - **Allocation Mechanism**: Allocates non-contiguous physical pages via `MmAllocatePagesForMdlEx`.
 - **User Mapping**: Maps allocated MDL pages into user virtual address space using `MmMapLockedPagesSpecifyCache` with `MdlMappingNoExecute` (enforcing Hardware DEP/NX protection).
-- **Process Attachment Guard**: During teardown, if the calling process differs from the owning process, `ProcessAttachmentGuard` executes `KeStackAttachProcess` to safely invoke `MmUnmapLockedPages`, then calls `MmFreePagesFromMdl`, `IoFreeMdl`, and `ObDereferenceObject`.
+- **Process Attachment & Teardown**:
+  - `ProcessAttachmentGuard` executes `KeStackAttachProcess` to safely invoke `SafeUnmapUserVa` in the context of the owning process during graceful shutdown.
+  - Process termination notifications via `PsSetCreateProcessNotifyRoutineEx` trigger `HandleProcessExit` to safely nullify user-mode addresses under spinlock without violating IRQL constraints or triggering `PROCESS_HAS_LOCKED_PAGES` (0x76).
+  - Destroys nodes strictly via atomic reference counting (`volatile LONG ReferenceCount`) to eliminate Use-After-Free races during concurrent buffer swaps.
 
 ### 2. `SlabMemoryEngine` (Lookaside List Cache Pool)
 - **Allocation Mechanism**: $O(1)$ allocation/deallocation via `NPAGED_LOOKASIDE_LIST`.
