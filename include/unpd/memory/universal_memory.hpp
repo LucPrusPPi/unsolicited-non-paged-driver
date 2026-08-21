@@ -38,6 +38,7 @@ struct SharedSessionDescriptor {
     volatile LONG64 SwapCounter;
     HANDLE SectionHandle;
     PEPROCESS OwningProcess;
+    PVOID SecureHandle;           ///< MmSecureVirtualMemory handle preventing VirtualFree DoS
     volatile LONG ReferenceCount; ///< Atomic reference counter to prevent UAF
     volatile LONG IsTornDown;     ///< Flag set when session teardown has started
 };

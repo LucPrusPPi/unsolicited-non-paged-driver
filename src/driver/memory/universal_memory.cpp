@@ -103,8 +103,20 @@ void MdlMemoryEngine::DestroySessionNode(SessionListNode* node) noexcept {
         PEPROCESS currentProcess = PsGetCurrentProcess();
         if (desc.OwningProcess && desc.OwningProcess != currentProcess) {
             unpd::mmu::ProcessAttachmentGuard guard(desc.OwningProcess);
+#ifdef _KERNEL_MODE
+            if (desc.SecureHandle) {
+                MmUnsecureVirtualMemory(desc.SecureHandle);
+                desc.SecureHandle = NULL;
+            }
+#endif
             SafeUnmapUserVa(desc.UserVa, desc.Mdl);
         } else {
+#ifdef _KERNEL_MODE
+            if (desc.SecureHandle) {
+                MmUnsecureVirtualMemory(desc.SecureHandle);
+                desc.SecureHandle = NULL;
+            }
+#endif
             SafeUnmapUserVa(desc.UserVa, desc.Mdl);
         }
         desc.UserVa = NULL;
@@ -188,9 +200,10 @@ void MdlMemoryEngine::HandleProcessExit(HANDLE processId) noexcept {
             HANDLE pid = PsGetProcessId(node->Descriptor.OwningProcess);
             if (pid == processId) {
                 // Windows automatically cleans up the dying process's VAD tree upon exit.
-                // Nullify UserVa to safely prevent double-unmap attempts in DestroySessionNode / DriverUnload.
+                // Nullify UserVa and SecureHandle to safely prevent double-unmap attempts in DestroySessionNode / DriverUnload.
                 if (node->Descriptor.UserVa && node->Descriptor.Mdl) {
                     node->Descriptor.UserVa = NULL;
+                    node->Descriptor.SecureHandle = NULL;
                 }
             }
         }
@@ -245,11 +258,27 @@ kstd::expected<SharedSessionDescriptor> MdlMemoryEngine::AllocateSharedSession(U
         return kstd::expected<SharedSessionDescriptor>::error(STATUS_INSUFFICIENT_RESOURCES);
     }
 
+    PVOID secureHandle = NULL;
+#ifdef _KERNEL_MODE
+    secureHandle = MmSecureVirtualMemory(userVa, totalBytes, PAGE_READWRITE);
+    if (!secureHandle) {
+        MmUnmapLockedPages(userVa, mdl);
+        MmFreePagesFromMdl(mdl);
+        IoFreeMdl(mdl);
+        return kstd::expected<SharedSessionDescriptor>::error(STATUS_INSUFFICIENT_RESOURCES);
+    }
+#endif
+
     auto* node = static_cast<SessionListNode*>(
         ExAllocatePool2(POOL_FLAG_NON_PAGED, sizeof(SessionListNode), 'NDPU')
     );
 
     if (!node) {
+#ifdef _KERNEL_MODE
+        if (secureHandle) {
+            MmUnsecureVirtualMemory(secureHandle);
+        }
+#endif
         MmUnmapLockedPages(userVa, mdl);
         MmFreePagesFromMdl(mdl);
         IoFreeMdl(mdl);
@@ -267,6 +296,7 @@ kstd::expected<SharedSessionDescriptor> MdlMemoryEngine::AllocateSharedSession(U
     desc.Mdl = mdl;
     desc.KernelVa = NULL;
     desc.UserVa = userVa;
+    desc.SecureHandle = secureHandle;
     desc.TotalBytes = totalBytes;
     desc.PageCount = pageCount;
     desc.ActiveBufferIndex = 0;

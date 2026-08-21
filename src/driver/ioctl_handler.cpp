@@ -636,6 +636,13 @@ NTSTATUS UnpdHandleSimdPatternScan(
         return STATUS_INVALID_PARAMETER;
     }
 
+    // Limit maximum scan buffer to 16MB to prevent integer truncation and massive MDL allocations
+    constexpr uint64_t kMaxScanBufferSize = 16ULL * 1024ULL * 1024ULL;
+    if (inBuf->BufferSize > kMaxScanBufferSize) {
+        *information = 0;
+        return STATUS_INVALID_PARAMETER;
+    }
+
     // Validate mask is null-terminated within buffer
     inBuf->Mask[63] = '\0';
     inBuf->Pattern[63] = 0;
