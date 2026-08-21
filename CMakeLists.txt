@@ -4,7 +4,7 @@ if(POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW)
 endif()
 
-project(UnsolicitedNonPagedDriver VERSION 1.4.0 LANGUAGES C CXX ASM_MASM RC)
+project(UnsolicitedNonPagedDriver VERSION 2.3.0 LANGUAGES C CXX ASM_MASM RC)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -14,6 +14,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 string(REGEX REPLACE "/RTC[1csu]+" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
 string(REGEX REPLACE "/RTC[1csu]+" "" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
 
+option(UNPD_BUILD_DRIVER "Build Windows NT Kernel Driver (.sys)" ON)
 option(UNPD_BUILD_TESTS "Build usermode test suite" ON)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -54,9 +55,19 @@ set(SDK_INC_UM "${KIT_ROOT}/Include/10.0.26100.0/um")
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # -----------------------------------------------------------------------------
+# Target: unpd_client (Usermode Client SDK Interface Library)
+# -----------------------------------------------------------------------------
+add_library(unpd_client INTERFACE)
+target_include_directories(unpd_client INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+target_compile_features(unpd_client INTERFACE cxx_std_20)
+
+# -----------------------------------------------------------------------------
 # Target: unpd.sys (Kernel Driver)
 # -----------------------------------------------------------------------------
-if(EXISTS "${WDK_INC_KM}")
+if(UNPD_BUILD_DRIVER AND EXISTS "${WDK_INC_KM}")
     set(DRIVER_SOURCES
         src/driver/driver_entry.cpp
         src/driver/device_control.cpp
@@ -170,12 +181,6 @@ if(EXISTS "${WDK_INC_KM}")
         DEPENDS unpd
         COMMENT "Signing driver binary with local test certificate..."
     )
-
-    install(TARGETS unpd
-        EXPORT unpdTargets
-        RUNTIME DESTINATION bin
-        ARCHIVE DESTINATION lib
-    )
 endif()
 
 # -----------------------------------------------------------------------------
@@ -264,13 +269,24 @@ include(CMakePackageConfigHelpers)
 
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
+install(TARGETS unpd_client
+    EXPORT unpdTargets
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
 if(TARGET unpd)
-    install(EXPORT unpdTargets
-        FILE unpdTargets.cmake
-        NAMESPACE unpd::
-        DESTINATION lib/cmake/unpd
+    install(TARGETS unpd
+        EXPORT unpdTargets
+        RUNTIME DESTINATION bin
+        ARCHIVE DESTINATION lib
     )
 endif()
+
+install(EXPORT unpdTargets
+    FILE unpdTargets.cmake
+    NAMESPACE unpd::
+    DESTINATION lib/cmake/unpd
+)
 
 configure_package_config_file(
     cmake/unpdConfig.cmake.in
