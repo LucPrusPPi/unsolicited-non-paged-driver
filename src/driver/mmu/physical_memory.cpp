@@ -25,6 +25,23 @@ NTSTATUS PhysicalMemory::ReadPhysicalAddress(ULONG64 physicalAddress, PVOID buff
         return STATUS_ACCESS_DENIED;
     }
 
+#ifdef _KERNEL_MODE
+    MM_COPY_ADDRESS sourceAddress{};
+    sourceAddress.PhysicalAddress.QuadPart = static_cast<LONGLONG>(physicalAddress);
+    SIZE_T copied = 0;
+
+    NTSTATUS status = MmCopyMemory(
+        buffer,
+        sourceAddress,
+        size,
+        MM_COPY_MEMORY_PHYSICAL,
+        &copied
+    );
+
+    if (bytesRead) *bytesRead = copied;
+    return status;
+#else
+    // Usermode Mock
     SIZE_T totalRead = 0;
     auto* dest = static_cast<uint8_t*>(buffer);
 
@@ -39,23 +56,13 @@ NTSTATUS PhysicalMemory::ReadPhysicalAddress(ULONG64 physicalAddress, PVOID buff
             return STATUS_UNSUCCESSFUL;
         }
 
-        NTSTATUS copyStatus = STATUS_SUCCESS;
-#ifdef _KERNEL_MODE
-        copyStatus = SafeCopyBuffer(dest + totalRead, mapping.Get(), chunk);
-#else
         memcpy(dest + totalRead, mapping.Get(), chunk);
-#endif
-
-        if (!NT_SUCCESS(copyStatus)) {
-            if (bytesRead) *bytesRead = totalRead;
-            return copyStatus;
-        }
-
         totalRead += chunk;
     }
 
     if (bytesRead) *bytesRead = totalRead;
     return STATUS_SUCCESS;
+#endif
 }
 
 NTSTATUS PhysicalMemory::WritePhysicalAddress(ULONG64 physicalAddress, const void* buffer, SIZE_T size, PSIZE_T bytesWritten) {
@@ -67,6 +74,7 @@ NTSTATUS PhysicalMemory::WritePhysicalAddress(ULONG64 physicalAddress, const voi
         return STATUS_ACCESS_DENIED;
     }
 
+#ifdef _KERNEL_MODE
     SIZE_T totalWritten = 0;
     const auto* src = static_cast<const uint8_t*>(buffer);
 
@@ -81,13 +89,7 @@ NTSTATUS PhysicalMemory::WritePhysicalAddress(ULONG64 physicalAddress, const voi
             return STATUS_UNSUCCESSFUL;
         }
 
-        NTSTATUS copyStatus = STATUS_SUCCESS;
-#ifdef _KERNEL_MODE
-        copyStatus = SafeCopyBuffer(mapping.Get(), src + totalWritten, chunk);
-#else
-        memcpy(mapping.Get(), src + totalWritten, chunk);
-#endif
-
+        NTSTATUS copyStatus = SafeCopyBuffer(mapping.Get(), src + totalWritten, chunk);
         if (!NT_SUCCESS(copyStatus)) {
             if (bytesWritten) *bytesWritten = totalWritten;
             return copyStatus;
@@ -98,6 +100,29 @@ NTSTATUS PhysicalMemory::WritePhysicalAddress(ULONG64 physicalAddress, const voi
 
     if (bytesWritten) *bytesWritten = totalWritten;
     return STATUS_SUCCESS;
+#else
+    // Usermode Mock
+    SIZE_T totalWritten = 0;
+    const auto* src = static_cast<const uint8_t*>(buffer);
+
+    while (totalWritten < size) {
+        const ULONG64 currentPa = physicalAddress + totalWritten;
+        const SIZE_T pageOffset = currentPa & 0xFFFULL;
+        const SIZE_T chunk = (size - totalWritten < (4096ULL - pageOffset)) ? (size - totalWritten) : (4096ULL - pageOffset);
+
+        PhysicalMemoryMapping<uint8_t> mapping(currentPa, chunk);
+        if (!mapping.IsValid()) {
+            if (bytesWritten) *bytesWritten = totalWritten;
+            return STATUS_UNSUCCESSFUL;
+        }
+
+        memcpy(mapping.Get(), src + totalWritten, chunk);
+        totalWritten += chunk;
+    }
+
+    if (bytesWritten) *bytesWritten = totalWritten;
+    return STATUS_SUCCESS;
+#endif
 }
 
 #endif // UNPD_FEATURE_PHYSICAL_MEMORY_ACCESS

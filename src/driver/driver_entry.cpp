@@ -79,7 +79,7 @@ DriverEntry(
     KeInitializeSpinLock(&devExt->StateLock);
     InitializeListHead(&devExt->AllocationListHead);
     devExt->MemoryManager = static_cast<unpd::memory::UniversalMemoryManager*>(
-        ExAllocatePool2(POOL_FLAG_NON_PAGED, sizeof(unpd::memory::UniversalMemoryManager), 'NDPU')
+        UnpdAllocatePool(sizeof(unpd::memory::UniversalMemoryManager), 'NDPU')
     );
     if (!devExt->MemoryManager) {
         IoDeleteDevice(deviceObject);

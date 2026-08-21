@@ -76,14 +76,7 @@ class NonPagedAllocation {
 public:
     explicit NonPagedAllocation(SIZE_T byteCount, ULONG tag = 'DPNU') noexcept
         : m_ptr(nullptr), m_size(byteCount), m_tag(tag) {
-#if (NTDDI_VERSION >= NTDDI_WIN10_VB)
-        m_ptr = static_cast<T*>(ExAllocatePool2(POOL_FLAG_NON_PAGED, byteCount, tag));
-#else
-        m_ptr = static_cast<T*>(ExAllocatePoolWithTag(NonPagedPoolNx, byteCount, tag));
-#endif
-        if (m_ptr != nullptr) {
-            RtlZeroMemory(m_ptr, byteCount);
-        }
+        m_ptr = static_cast<T*>(UnpdAllocatePool(byteCount, tag));
     }
 
     ~NonPagedAllocation() noexcept {

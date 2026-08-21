@@ -90,7 +90,7 @@ private:
 #ifdef _KERNEL_MODE
 template <typename T, ULONG Tag = 'DPNU', typename... Args>
 [[nodiscard]] unique_ptr<T, KernelPoolDeleter<Tag>> make_kernel_unique(Args&&... args) {
-    void* memory = ExAllocatePool2(POOL_FLAG_NON_PAGED, sizeof(T), Tag);
+    void* memory = UnpdAllocatePool(sizeof(T), Tag);
     if (!memory) return unique_ptr<T, KernelPoolDeleter<Tag>>();
     T* object = new (memory) T(static_cast<Args&&>(args)...);
     return unique_ptr<T, KernelPoolDeleter<Tag>>(object);

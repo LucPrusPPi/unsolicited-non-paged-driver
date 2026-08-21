@@ -214,7 +214,7 @@ NTSTATUS PagingEngine::SafeCopyProcessMemory(
     }
 
     // Allocate temporary kernel buffer for intermediate transfer
-    PVOID intermediate = ExAllocatePool2(POOL_FLAG_NON_PAGED, size, 'MPNU');
+    PVOID intermediate = UnpdAllocatePool(size, 'MPNU');
     if (!intermediate) {
         return STATUS_INSUFFICIENT_RESOURCES;
     }
@@ -228,7 +228,7 @@ NTSTATUS PagingEngine::SafeCopyProcessMemory(
     }
 
     if (!NT_SUCCESS(status)) {
-        ExFreePoolWithTag(intermediate, 'MPNU');
+        UnpdFreePool(intermediate, 'MPNU');
         return status;
     }
 
@@ -238,7 +238,7 @@ NTSTATUS PagingEngine::SafeCopyProcessMemory(
         status = SafeProbeAndWrite(targetAddress, intermediate, size);
     }
 
-    ExFreePoolWithTag(intermediate, 'MPNU');
+    UnpdFreePool(intermediate, 'MPNU');
     return status;
 }
 

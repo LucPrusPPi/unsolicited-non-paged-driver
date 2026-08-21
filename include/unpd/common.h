@@ -4,7 +4,7 @@
 #define UNPD_COMMON_H
 
 #ifdef _KERNEL_MODE
-#include <ntdef.h>
+#include <ntddk.h>
 #include <ntstatus.h>
 typedef unsigned char      uint8_t;
 typedef unsigned short     uint16_t;
@@ -389,6 +389,30 @@ typedef struct _UNPD_PROCESS_BASE_RESPONSE {
 } UNPD_PROCESS_BASE_RESPONSE, *PUNPD_PROCESS_BASE_RESPONSE;
 
 #pragma pack(pop)
+
+#ifdef _KERNEL_MODE
+/**
+ * @brief Universal backward-compatible non-paged pool allocator.
+ * Automatically falls back to ExAllocatePoolWithTag on Windows 10 versions prior to 2004 (20H1).
+ */
+FORCEINLINE PVOID UnpdAllocatePool(SIZE_T size, ULONG tag = UNPD_POOL_TAG) noexcept {
+#if defined(NTDDI_WIN10_VB) && (NTDDI_VERSION >= NTDDI_WIN10_VB)
+    return ExAllocatePool2(POOL_FLAG_NON_PAGED, size, tag);
+#else
+    PVOID ptr = ExAllocatePoolWithTag(NonPagedPoolNx, size, tag);
+    if (ptr) {
+        RtlZeroMemory(ptr, size);
+    }
+    return ptr;
+#endif
+}
+
+FORCEINLINE void UnpdFreePool(PVOID ptr, ULONG tag = UNPD_POOL_TAG) noexcept {
+    if (ptr) {
+        ExFreePoolWithTag(ptr, tag);
+    }
+}
+#endif
 
 #ifdef __cplusplus
 }

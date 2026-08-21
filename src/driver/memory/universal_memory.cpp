@@ -9,27 +9,27 @@
 // ============================================================================
 
 void* __cdecl operator new(size_t size) {
-    return ExAllocatePool2(POOL_FLAG_NON_PAGED, size, 'WENK');
+    return UnpdAllocatePool(size, 'WENK');
 }
 
 void* __cdecl operator new[](size_t size) {
-    return ExAllocatePool2(POOL_FLAG_NON_PAGED, size, 'WENK');
+    return UnpdAllocatePool(size, 'WENK');
 }
 
 void __cdecl operator delete(void* ptr) noexcept {
-    if (ptr) ExFreePoolWithTag(ptr, 'WENK');
+    if (ptr) UnpdFreePool(ptr, 'WENK');
 }
 
 void __cdecl operator delete[](void* ptr) noexcept {
-    if (ptr) ExFreePoolWithTag(ptr, 'WENK');
+    if (ptr) UnpdFreePool(ptr, 'WENK');
 }
 
 void __cdecl operator delete(void* ptr, size_t) noexcept {
-    if (ptr) ExFreePoolWithTag(ptr, 'WENK');
+    if (ptr) UnpdFreePool(ptr, 'WENK');
 }
 
 void __cdecl operator delete[](void* ptr, size_t) noexcept {
-    if (ptr) ExFreePoolWithTag(ptr, 'WENK');
+    if (ptr) UnpdFreePool(ptr, 'WENK');
 }
 
 namespace std {
@@ -37,15 +37,15 @@ namespace std {
 }
 
 void* __cdecl operator new(size_t size, std::align_val_t) {
-    return ExAllocatePool2(POOL_FLAG_NON_PAGED, size, 'WENK');
+    return UnpdAllocatePool(size, 'WENK');
 }
 
 void* __cdecl operator new[](size_t size, std::align_val_t) {
-    return ExAllocatePool2(POOL_FLAG_NON_PAGED, size, 'WENK');
+    return UnpdAllocatePool(size, 'WENK');
 }
 
 void __cdecl operator delete(void* ptr, std::align_val_t) noexcept {
-    if (ptr) ExFreePoolWithTag(ptr, 'WENK');
+    if (ptr) UnpdFreePool(ptr, 'WENK');
 }
 
 void __cdecl operator delete[](void* ptr, std::align_val_t) noexcept {
@@ -270,7 +270,7 @@ kstd::expected<SharedSessionDescriptor> MdlMemoryEngine::AllocateSharedSession(U
 #endif
 
     auto* node = static_cast<SessionListNode*>(
-        ExAllocatePool2(POOL_FLAG_NON_PAGED, sizeof(SessionListNode), 'NDPU')
+        UnpdAllocatePool(sizeof(SessionListNode), 'NDPU')
     );
 
     if (!node) {
@@ -547,7 +547,7 @@ kstd::expected<uint64_t> PoolMemoryEngine::AllocatePoolBlock(SIZE_T size, ULONG 
         return kstd::expected<uint64_t>::error(STATUS_INVALID_PARAMETER);
     }
 
-    PVOID block = ExAllocatePool2(POOL_FLAG_NON_PAGED, size, tag);
+    PVOID block = UnpdAllocatePool(size, tag);
     if (!block) {
         return kstd::expected<uint64_t>::error(STATUS_INSUFFICIENT_RESOURCES);
     }
@@ -558,7 +558,7 @@ kstd::expected<uint64_t> PoolMemoryEngine::AllocatePoolBlock(SIZE_T size, ULONG 
 NTSTATUS PoolMemoryEngine::FreePoolBlock(uint64_t handle) noexcept {
     if (handle == 0) return STATUS_INVALID_PARAMETER;
     PVOID block = reinterpret_cast<PVOID>(handle);
-    ExFreePoolWithTag(block, UNPD_POOL_TAG);
+    UnpdFreePool(block, UNPD_POOL_TAG);
     return STATUS_SUCCESS;
 }
 

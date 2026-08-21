@@ -65,7 +65,7 @@ NTSTATUS KernelApc::QueueUserApc(HANDLE targetThreadId, PVOID userRoutine, PVOID
         return status;
     }
 
-    auto* apc = static_cast<PKAPC>(ExAllocatePool2(POOL_FLAG_NON_PAGED, sizeof(KAPC), UNPD_POOL_TAG));
+    auto* apc = static_cast<PKAPC>(UnpdAllocatePool(sizeof(KAPC), UNPD_POOL_TAG));
     if (!apc) {
         ObDereferenceObject(thread);
         return STATUS_INSUFFICIENT_RESOURCES;

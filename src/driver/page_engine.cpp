@@ -50,11 +50,7 @@ NTSTATUS UnpdInitPageEngine(PUNPD_PAGE_ENGINE engine) {
         KeInitializeSpinLock(&slab->CacheLock);
 
         SIZE_T cacheSize = 64 * 1024; // 64 KB per slab class
-#if (NTDDI_VERSION >= NTDDI_WIN10_VB)
-        slab->PageBacking = ExAllocatePool2(POOL_FLAG_NON_PAGED, cacheSize, UNPD_SLAB_TAG);
-#else
-        slab->PageBacking = ExAllocatePoolWithTag(NonPagedPoolNx, cacheSize, UNPD_SLAB_TAG);
-#endif
+        slab->PageBacking = UnpdAllocatePool(cacheSize, UNPD_SLAB_TAG);
         if (slab->PageBacking != nullptr) {
             RtlZeroMemory(slab->PageBacking, cacheSize);
             uint32_t blockCount = static_cast<uint32_t>(cacheSize / slab->BlockSize);
@@ -129,11 +125,7 @@ NTSTATUS UnpdCreateSharedSession(
 
     SIZE_T totalBytes = static_cast<SIZE_T>(pageCount) * PAGE_SIZE;
 
-#if (NTDDI_VERSION >= NTDDI_WIN10_VB)
-    PVOID kernelVa = ExAllocatePool2(POOL_FLAG_NON_PAGED, totalBytes, UNPD_PAGE_TAG);
-#else
-    PVOID kernelVa = ExAllocatePoolWithTag(NonPagedPoolNx, totalBytes, UNPD_PAGE_TAG);
-#endif
+    PVOID kernelVa = UnpdAllocatePool(totalBytes, UNPD_PAGE_TAG);
     if (kernelVa == nullptr) {
         return STATUS_INSUFFICIENT_RESOURCES;
     }
@@ -141,7 +133,7 @@ NTSTATUS UnpdCreateSharedSession(
 
     PMDL mdl = IoAllocateMdl(kernelVa, static_cast<ULONG>(totalBytes), FALSE, FALSE, nullptr);
     if (mdl == nullptr) {
-        ExFreePoolWithTag(kernelVa, UNPD_PAGE_TAG);
+        UnpdFreePool(kernelVa, UNPD_PAGE_TAG);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -150,19 +142,15 @@ NTSTATUS UnpdCreateSharedSession(
     PVOID userVa = SafeMmMapLockedPages(mdl);
     if (userVa == nullptr) {
         IoFreeMdl(mdl);
-        ExFreePoolWithTag(kernelVa, UNPD_PAGE_TAG);
+        UnpdFreePool(kernelVa, UNPD_PAGE_TAG);
         return STATUS_UNSUCCESSFUL;
     }
 
-#if (NTDDI_VERSION >= NTDDI_WIN10_VB)
-    auto* session = static_cast<PUNPD_SHARED_SESSION>(ExAllocatePool2(POOL_FLAG_NON_PAGED, sizeof(UNPD_SHARED_SESSION), UNPD_POOL_TAG));
-#else
-    auto* session = static_cast<PUNPD_SHARED_SESSION>(ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(UNPD_SHARED_SESSION), UNPD_POOL_TAG));
-#endif
+    auto* session = static_cast<PUNPD_SHARED_SESSION>(UnpdAllocatePool(sizeof(UNPD_SHARED_SESSION), UNPD_POOL_TAG));
     if (session == nullptr) {
         SafeMmUnmapLockedPages(userVa, mdl);
         IoFreeMdl(mdl);
-        ExFreePoolWithTag(kernelVa, UNPD_PAGE_TAG);
+        UnpdFreePool(kernelVa, UNPD_PAGE_TAG);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
