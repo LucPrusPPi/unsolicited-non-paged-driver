@@ -93,34 +93,16 @@ public:
     static void FastZero(void* address, uint64_t size) noexcept {
         if (!address || size == 0) return;
 
-#if UNPD_CONFIG_ALLOW_SIMD_ACCELERATION && defined(_KERNEL_MODE)
-        if (GetActiveLevel() == SimdLevel::AVX2) {
-            XSTATE_SAVE xstateSave{};
-            NTSTATUS status = KeSaveExtendedProcessorState(XSTATE_MASK_GSSE, &xstateSave);
-            if (NT_SUCCESS(status)) {
-                UnpdFastZeroAVX2ASM(address, size);
-                KeRestoreExtendedProcessorState(&xstateSave);
-                return;
-            }
-        }
-#endif
+        // In Ring-0, rep stosq/stosb with hardware ERMS/FSRM saturates bus bandwidth
+        // without allocating heavy XSTATE_SAVE on the limited 24KB/12KB kernel stack.
         UnpdZeroMemorySecureASM(address, size);
     }
 
     static void FastCopy(void* dest, const void* src, uint64_t size) noexcept {
         if (!dest || !src || size == 0) return;
 
-#if UNPD_CONFIG_ALLOW_SIMD_ACCELERATION && defined(_KERNEL_MODE)
-        if (GetActiveLevel() == SimdLevel::AVX2) {
-            XSTATE_SAVE xstateSave{};
-            NTSTATUS status = KeSaveExtendedProcessorState(XSTATE_MASK_GSSE, &xstateSave);
-            if (NT_SUCCESS(status)) {
-                UnpdFastCopyAVX2ASM(dest, src, size);
-                KeRestoreExtendedProcessorState(&xstateSave);
-                return;
-            }
-        }
-#endif
+        // In Ring-0, rep movsq/movsb (ERMS/FSRM) achieves peak memory throughput
+        // with zero floating-point/vector context save overhead.
         UnpdFastCopy64(dest, src, size / 8);
         uint64_t remainder = size % 8;
         if (remainder > 0) {

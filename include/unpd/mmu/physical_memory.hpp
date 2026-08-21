@@ -15,8 +15,10 @@ namespace unpd::mmu {
 #if UNPD_FEATURE_PHYSICAL_MEMORY_ACCESS
 
 /**
- * @brief C++20 RAII Template Wrapper for Physical Memory Mapping.
- * Automatically handles MmMapIoSpace and MmUnmapIoSpace in Ring-0.
+ * @brief C++20 RAII Template Wrapper for Physical Device / MMIO Mapping.
+ * @details Automatically handles MmMapIoSpace and MmUnmapIoSpace in Ring-0.
+ * Note: On Windows 10 (1803+) and Windows 11, MmMapIoSpace is restricted to MMIO/Device
+ * ranges and rejects system RAM; use PhysicalMemory::ReadPhysicalAddress (MmCopyMemory) for RAM.
  */
 template <typename T = uint8_t>
 class PhysicalMemoryMapping {

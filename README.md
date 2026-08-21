@@ -119,6 +119,28 @@ Built from the ground up for Windows 10 and Windows 11 x64, UNPD provides:
 
 ---
 
+## Architectural Trade-offs & Systems Engineering Realities
+
+Developing modular kernel frameworks on Windows NT requires navigating deep OS design constraints:
+
+1. **KVA Shadowing (Meltdown / KPTI) & PCID**:
+   - On systems with KVA Shadowing enabled (`KiKvaShadow`), each process contains split PML4 roots: `DirectoryTableBase[0]` (Kernel PML4) and `UserDirectoryTableBase` (User PML4).
+   - `Cr3Walker` specifically expects the **Kernel DirectoryTableBase** (mapping both kernel and user address spaces) and automatically masks out Process Context Identifier (PCID) bits `0..11` (`cr3 & ~0xFFF`).
+2. **Physical RAM vs MMIO Access (`MmCopyMemory` vs `MmMapIoSpace`)**:
+   - Starting with Windows 10 (1803/2004+), `MmMapIoSpace` explicitly validates against `MmGetPhysicalMemoryRanges` and rejects attempts to map system RAM.
+   - UNPD routes all physical RAM read operations through `MmCopyMemory(..., MM_COPY_MEMORY_PHYSICAL, ...)`, which safely performs internal PFN validation and SEH page fault handling. `PhysicalMemoryMapping` is strictly reserved for MMIO device registers.
+3. **Lockless CR3 Traversal & Memory Safety**:
+   - Manual 4-level PML4 walking does not acquire `MiLockPageTable` or process working set locks.
+   - If target pages are concurrently deallocated (`VirtualFree`) or transitioned to Standby/Compressed lists (`Present=0`), traversal safely aborts and returns an error without raising unhandled `#PF` traps.
+4. **Kernel Stack Budget (24 KB / 12 KB)**:
+   - Kernel stacks on Windows x64 are strictly bounded (24 KB for system threads, 12 KB for GUI threads).
+   - UNPD avoids allocating heavy `XSTATE_SAVE` (2.5+ KB) buffers on the stack during memory copies, utilizing hardware-accelerated `rep movsb` (ERMS / FSRM) at full memory bus bandwidth.
+5. **PatchGuard (KPP) & VBS / HVCI Considerations**:
+   - In-place table modifications (`PiDDBCacheTable`, `MmUnloadedDrivers`) and direct PTE attribute manipulations are subject to periodic Kernel Patch Protection audits and hypervisor (SLAT/EPT) integrity checks on production systems with VBS enabled.
+   - These modules serve as educational reference implementations designed for test-signed, virtualized research sandboxes.
+
+---
+
 ## Complete IOCTL Opcode Index (16 Opcodes)
 
 | Opcode Name | Code | Method | Access Mask | Purpose |
