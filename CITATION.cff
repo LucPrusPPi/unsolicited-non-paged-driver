@@ -26,5 +26,5 @@ keywords:
   - "zero-copy"
   - "ring-0"
 license: "MIT"
-version: "2.5.0"
+version: "2.4.0"
 date-released: "2026-08-21"
