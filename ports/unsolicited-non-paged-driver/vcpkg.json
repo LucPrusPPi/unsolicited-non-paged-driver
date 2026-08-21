@@ -1,6 +1,6 @@
 {
   "name": "unsolicited-non-paged-driver",
-  "version-string": "2.3.0",
+  "version-string": "2.5.0",
   "description": "Windows Kernel Driver Framework and Usermode Client SDK for high-performance memory operations",
   "homepage": "https://github.com/LucPrusPPi/unsolicited-non-paged-driver",
   "license": "MIT",

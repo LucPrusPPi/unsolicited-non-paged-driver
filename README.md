@@ -5,7 +5,7 @@
 An academic-grade, modern C++20 Windows Kernel Driver framework, universal memory manager, x86-64 MMU paging engine, and automated GoogleTest test-signing harness.
 
 [![CI Pipeline](https://img.shields.io/badge/CI%20Matrix-6%2F6%20passing-brightgreen.svg?style=flat-square)](https://github.com/LucPrusPPi/unsolicited-non-paged-driver/actions)
-[![GoogleTest](https://img.shields.io/badge/GoogleTest-73%20passed-success.svg?style=flat-square)]()
+[![GoogleTest](https://img.shields.io/badge/GoogleTest-118%20passed-success.svg?style=flat-square)]()
 [![PyTest](https://img.shields.io/badge/PyTest-8%20passed-success.svg?style=flat-square)]()
 [![C++ Standard](https://img.shields.io/badge/C%2B%2B-20-blue.svg?style=flat-square)]()
 [![Architecture](https://img.shields.io/badge/arch-x64%20%2F%20MASM64-orange.svg?style=flat-square)]()
@@ -35,7 +35,7 @@ Built from the ground up for Windows 10 and Windows 11 x64, UNPD provides:
 - **Public C++20 Usermode Client SDK**: High-level RAII client (`include/unpd/client.hpp`) with 16 typed methods and `SharedRingSession` RAII container with automated loopback fallback for CI environments.
 - **Hardware Assembly (MASM64)**: Ring-0 memory fences, cycle counters (`rdtsc`/`rdtscp`), CR0..CR8, MSRs, DR0..DR7, descriptor tables (`sgdt`, `sidt`, `str`), hardware SSE4.2 CRC32 acceleration, and TLB invalidation (`invlpg`, `wbinvd`, CR3 reload).
 - **Multi-Language Automation**: Complete mirrored scripting support in PowerShell, POSIX Shell (Git Bash/WSL), Python 3, and Lua.
-- **Automated Matrix CI**: 6-job matrix in GitHub Actions (MSVC & Clang-CL in Release and Debug, Python tooling validation, schema audit) with 73 GoogleTests + 8 PyTests.
+- **Automated Matrix CI**: 6-job matrix in GitHub Actions (MSVC & Clang-CL in Release and Debug, Python tooling validation, schema audit) with 118 GoogleTests + 8 PyTests.
 
 ---
 
