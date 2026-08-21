@@ -62,7 +62,7 @@ public:
 #ifdef _KERNEL_MODE
         PHYSICAL_ADDRESS pa{};
         pa.QuadPart = static_cast<LONGLONG>(physicalAddress);
-        m_virtualAddress = MmMapIoSpace(pa, size, MmNonCached);
+        m_virtualAddress = MmMapIoSpace(pa, size, MmCached);
         if (m_virtualAddress) {
             m_mappedSize = size;
             return true;

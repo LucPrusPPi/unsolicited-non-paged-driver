@@ -11,7 +11,9 @@ ULONG64 Cr3Walker::TranslateVirtualToPhysical(ULONG64 cr3, ULONG64 virtualAddres
         return 0;
     }
 
-    const ULONG64 pml4Base = cr3 & 0x000FFFFFFFFFF000ULL;
+    // Ensure PCID bits (0-11) are stripped from CR3, especially important for KVAS
+    const ULONG64 sanitizedCr3 = cr3 & ~0xFFFULL;
+    const ULONG64 pml4Base = sanitizedCr3 & 0x000FFFFFFFFFF000ULL;
     const ULONG64 pml4Index = (virtualAddress >> 39) & 0x1FFULL;
     const ULONG64 pml4eAddress = pml4Base + (pml4Index * sizeof(ULONG64));
 
