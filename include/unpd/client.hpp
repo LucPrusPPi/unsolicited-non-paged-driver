@@ -128,8 +128,8 @@ public:
                     std::chrono::system_clock::now().time_since_epoch()
                 ).count()
             );
-            response.DriverVersionMajor = 1;
-            response.DriverVersionMinor = 0;
+            response.DriverVersionMajor = UNPD_PROJECT_VERSION_MAJOR;
+            response.DriverVersionMinor = UNPD_PROJECT_VERSION_MINOR;
             return true;
         }
 

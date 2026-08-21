@@ -1000,7 +1000,15 @@ UnpdFastCopyAVX2ASM PROC
     vzeroupper
     test    r8, r8
     jz      @copy_avx_done
-    call    UnpdFastCopy64
+    ; Copy remaining 0..31 bytes safely byte-by-byte
+    push    rsi
+    push    rdi
+    mov     rdi, rcx
+    mov     rsi, rdx
+    mov     rcx, r8
+    rep     movsb
+    pop     rdi
+    pop     rsi
 
 @copy_avx_done:
     ret

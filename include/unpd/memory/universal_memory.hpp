@@ -101,12 +101,14 @@ public:
     SessionListNode* AcquireSessionReference(uint64_t sessionId) noexcept;
     void ReleaseSessionReference(SessionListNode* node) noexcept;
     void HandleProcessExit(HANDLE processId) noexcept;
+    [[nodiscard]] uint32_t GetActiveSessionsCount() const noexcept { return m_activeSessionsCount; }
 
 private:
     void DestroySessionNode(SessionListNode* node) noexcept;
 
     KSPIN_LOCK m_lock;
     LIST_ENTRY m_sessionListHead;
+    uint32_t m_activeSessionsCount;
     bool m_initialized;
     volatile LONG64 m_nextSessionId;
 };
@@ -236,7 +238,7 @@ public:
     [[nodiscard]] SlabMemoryEngine& GetSlabEngine() noexcept { return m_slabEngine; }
     [[nodiscard]] PoolMemoryEngine& GetPoolEngine() noexcept { return m_poolEngine; }
 
-    [[nodiscard]] uint32_t GetActiveSessionsCount() const noexcept { return 0; }
+    [[nodiscard]] uint32_t GetActiveSessionsCount() const noexcept { return m_mdlEngine.GetActiveSessionsCount(); }
     [[nodiscard]] uint64_t GetTotalSwapsCount() const noexcept { return 0; }
 
 private:

@@ -38,8 +38,8 @@ NTSTATUS UnpdHandlePing(
     outBuf->Magic = UNPD_MAGIC_RESPONSE;
     outBuf->Sequence = seq + 1;
     outBuf->KernelTimestamp = static_cast<uint64_t>(systemTime.QuadPart);
-    outBuf->DriverVersionMajor = 1;
-    outBuf->DriverVersionMinor = 0;
+    outBuf->DriverVersionMajor = UNPD_PROJECT_VERSION_MAJOR;
+    outBuf->DriverVersionMinor = UNPD_PROJECT_VERSION_MINOR;
 
     *information = sizeof(UNPD_PING_RESPONSE);
     return STATUS_SUCCESS;

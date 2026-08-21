@@ -163,6 +163,7 @@ if(UNPD_BUILD_DRIVER AND EXISTS "${WDK_INC_KM}")
         /GUARD:CF
         /DYNAMICBASE
         /NXCOMPAT
+        /INTEGRITYCHECK
         /OPT:REF
         /OPT:ICF
         /SECTION:.rdata,DR
@@ -173,11 +174,12 @@ if(UNPD_BUILD_DRIVER AND EXISTS "${WDK_INC_KM}")
         "${WDK_LIB_KM}/ntoskrnl.lib"
         "${WDK_LIB_KM}/hal.lib"
         "${WDK_LIB_KM}/wdm.lib"
+        "${WDK_LIB_KM}/wdmsec.lib"
         "${WDK_LIB_KM}/BufferOverflowK.lib"
     )
 
     add_custom_target(sign_driver
-        COMMAND powershell.exe -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/Sign-Driver.ps1 -DriverPath $<TARGET_FILE:unpd>
+        COMMAND powershell.exe -ExecutionPolicy Bypass -File ${CMAKE_CURRENT_SOURCE_DIR}/scripts/powershell/Sign-Driver.ps1 -DriverPath $<TARGET_FILE:unpd>
         DEPENDS unpd
         COMMENT "Signing driver binary with local test certificate..."
     )

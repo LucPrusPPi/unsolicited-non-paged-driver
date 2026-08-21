@@ -1,3 +1,4 @@
+#include "unpd/config.hpp"
 #include "unpd/dispatch.hpp"
 
 extern "C"

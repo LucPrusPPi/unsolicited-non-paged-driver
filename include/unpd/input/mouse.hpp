@@ -26,10 +26,9 @@ public:
         UNREFERENCED_PARAMETER(buttonFlags);
 
 #if UNPD_FEATURE_SYNTHETIC_MOUSE_INPUT && defined(_KERNEL_MODE)
-        // TODO: Implement signature scanning for MouseClassServiceCallback in mouclass.sys
-        // or hook I8042prt device object to dispatch synthetic MOUSE_INPUT_DATA packets.
-        // Currently returns STATUS_SUCCESS as a modular framework scaffold.
-        return STATUS_SUCCESS;
+        // Modular framework stub: requires hooking MouClassCallback / MouFilter
+        // Return STATUS_NOT_IMPLEMENTED when hook callback is not registered
+        return STATUS_NOT_IMPLEMENTED;
 #else
         return STATUS_NOT_SUPPORTED;
 #endif

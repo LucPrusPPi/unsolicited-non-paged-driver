@@ -1,3 +1,4 @@
+#include "unpd/config.hpp"
 #include "unpd/dispatch.hpp"
 #include "unpd/kernel_raii.hpp"
 
@@ -36,8 +37,8 @@ DriverEntry(
     UNICODE_STRING deviceName;
     UNICODE_STRING symlinkName;
 
-    RtlInitUnicodeString(&deviceName, UNPD_DEVICE_NAME_W);
-    RtlInitUnicodeString(&symlinkName, UNPD_DOS_DEVICE_NAME_W);
+    RtlInitUnicodeString(&deviceName, UNPD_NT_DEVICE_NAME);
+    RtlInitUnicodeString(&symlinkName, UNPD_DOS_DEVICE_NAME);
 
 #if UNPD_CONFIG_STRICT_SDDL_ACL && defined(_KERNEL_MODE)
     // Strict SDDL ACL: Allow System (SY) and Builtin Admins (BA) Full Access
@@ -52,7 +53,7 @@ DriverEntry(
         FILE_DEVICE_SECURE_OPEN,
         FALSE,
         &sddlString,
-        (LPCGUID)&GUID_DEVCLASS_UNKNOWN,
+        &GUID_DEVCLASS_UNPD,
         &deviceObject
     );
 #else
@@ -76,6 +77,7 @@ DriverEntry(
 
     devExt->DeviceObject = deviceObject;
     devExt->SymbolicLinkName = symlinkName;
+    devExt->NextAllocationHandle = 1;
     KeInitializeSpinLock(&devExt->StateLock);
     InitializeListHead(&devExt->AllocationListHead);
     devExt->MemoryManager = static_cast<unpd::memory::UniversalMemoryManager*>(
@@ -90,25 +92,29 @@ DriverEntry(
     status = devExt->MemoryManager->Initialize();
     if (!NT_SUCCESS(status)) {
         devExt->MemoryManager->~UniversalMemoryManager();
-        ExFreePoolWithTag(devExt->MemoryManager, 'NDPU');
+        UnpdFreePool(devExt->MemoryManager, 'NDPU');
         IoDeleteDevice(deviceObject);
         return status;
     }
 
 #ifdef _KERNEL_MODE
     g_DevExt = devExt;
-    PsSetCreateProcessNotifyRoutineEx(ProcessNotifyCallbackEx, FALSE);
+    NTSTATUS notifyStatus = PsSetCreateProcessNotifyRoutineEx(ProcessNotifyCallbackEx, FALSE);
+    devExt->ProcessNotifyRegistered = NT_SUCCESS(notifyStatus);
 #endif
 
     status = IoCreateSymbolicLink(&symlinkName, &deviceName);
     if (!NT_SUCCESS(status)) {
 #ifdef _KERNEL_MODE
-        PsSetCreateProcessNotifyRoutineEx(ProcessNotifyCallbackEx, TRUE);
+        if (devExt->ProcessNotifyRegistered) {
+            PsSetCreateProcessNotifyRoutineEx(ProcessNotifyCallbackEx, TRUE);
+            devExt->ProcessNotifyRegistered = FALSE;
+        }
         g_DevExt = nullptr;
 #endif
         devExt->MemoryManager->Shutdown();
         devExt->MemoryManager->~UniversalMemoryManager();
-        ExFreePoolWithTag(devExt->MemoryManager, 'NDPU');
+        UnpdFreePool(devExt->MemoryManager, 'NDPU');
         IoDeleteDevice(deviceObject);
         return status;
     }
@@ -135,7 +141,10 @@ DriverUnload(
         auto* devExt = static_cast<PUNPD_DEVICE_EXTENSION>(deviceObject->DeviceExtension);
 
 #ifdef _KERNEL_MODE
-        PsSetCreateProcessNotifyRoutineEx(ProcessNotifyCallbackEx, TRUE);
+        if (devExt->ProcessNotifyRegistered) {
+            PsSetCreateProcessNotifyRoutineEx(ProcessNotifyCallbackEx, TRUE);
+            devExt->ProcessNotifyRegistered = FALSE;
+        }
         g_DevExt = nullptr;
 #endif
 
@@ -144,7 +153,7 @@ DriverUnload(
         if (devExt->MemoryManager != nullptr) {
             devExt->MemoryManager->Shutdown();
             devExt->MemoryManager->~UniversalMemoryManager();
-            ExFreePoolWithTag(devExt->MemoryManager, 'NDPU');
+            UnpdFreePool(devExt->MemoryManager, 'NDPU');
             devExt->MemoryManager = nullptr;
         }
 
@@ -156,9 +165,9 @@ DriverUnload(
                 auto* alloc = CONTAINING_RECORD(entry, UNPD_ALLOCATION_ENTRY, ListEntry);
 
                 if (alloc->Address != nullptr) {
-                    ExFreePoolWithTag(alloc->Address, alloc->Tag);
+                    UnpdFreePool(alloc->Address, alloc->Tag);
                 }
-                ExFreePoolWithTag(alloc, UNPD_POOL_TAG);
+                UnpdFreePool(alloc, UNPD_POOL_TAG);
             }
         }
 

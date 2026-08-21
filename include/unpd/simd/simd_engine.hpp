@@ -67,22 +67,22 @@ public:
 #if UNPD_CONFIG_ALLOW_SIMD_ACCELERATION && defined(_KERNEL_MODE)
         SimdLevel level = GetActiveLevel();
         if (level == SimdLevel::AVX512) {
-            KFLOATING_SAVE fpuSave{};
-            // XSTATE_MASK_AVX512 = XSTATE_MASK_GSSE (0x4) | XSTATE_MASK_AVX512 (0xE0)
-            NTSTATUS status = KeSaveExtendedProcessorState(0xE4, reinterpret_cast<PXSTATE_SAVE>(&fpuSave));
+            XSTATE_SAVE xstateSave{};
+            // XSTATE_MASK_AVX512 = XSTATE_MASK_GSSE (0x4) | XSTATE_MASK_AVX512 (0xE0) = 0xE4
+            NTSTATUS status = KeSaveExtendedProcessorState(0xE4, &xstateSave);
             const void* result = nullptr;
             if (NT_SUCCESS(status)) {
                 result = UnpdScanPatternAVX512ASM(base, size, pattern, mask);
-                KeRestoreExtendedProcessorState(reinterpret_cast<PXSTATE_SAVE>(&fpuSave));
+                KeRestoreExtendedProcessorState(&xstateSave);
                 return result;
             }
         } else if (level == SimdLevel::AVX2) {
-            KFLOATING_SAVE fpuSave{};
-            NTSTATUS status = KeSaveExtendedProcessorState(XSTATE_MASK_GSSE, reinterpret_cast<PXSTATE_SAVE>(&fpuSave));
+            XSTATE_SAVE xstateSave{};
+            NTSTATUS status = KeSaveExtendedProcessorState(XSTATE_MASK_GSSE, &xstateSave);
             const void* result = nullptr;
             if (NT_SUCCESS(status)) {
                 result = UnpdScanPatternAVX2ASM(base, size, pattern, mask);
-                KeRestoreExtendedProcessorState(reinterpret_cast<PXSTATE_SAVE>(&fpuSave));
+                KeRestoreExtendedProcessorState(&xstateSave);
                 return result;
             }
         }
@@ -95,11 +95,11 @@ public:
 
 #if UNPD_CONFIG_ALLOW_SIMD_ACCELERATION && defined(_KERNEL_MODE)
         if (GetActiveLevel() == SimdLevel::AVX2) {
-            KFLOATING_SAVE fpuSave{};
-            NTSTATUS status = KeSaveExtendedProcessorState(XSTATE_MASK_GSSE, reinterpret_cast<PXSTATE_SAVE>(&fpuSave));
+            XSTATE_SAVE xstateSave{};
+            NTSTATUS status = KeSaveExtendedProcessorState(XSTATE_MASK_GSSE, &xstateSave);
             if (NT_SUCCESS(status)) {
                 UnpdFastZeroAVX2ASM(address, size);
-                KeRestoreExtendedProcessorState(reinterpret_cast<PXSTATE_SAVE>(&fpuSave));
+                KeRestoreExtendedProcessorState(&xstateSave);
                 return;
             }
         }
@@ -112,11 +112,11 @@ public:
 
 #if UNPD_CONFIG_ALLOW_SIMD_ACCELERATION && defined(_KERNEL_MODE)
         if (GetActiveLevel() == SimdLevel::AVX2) {
-            KFLOATING_SAVE fpuSave{};
-            NTSTATUS status = KeSaveExtendedProcessorState(XSTATE_MASK_GSSE, reinterpret_cast<PXSTATE_SAVE>(&fpuSave));
+            XSTATE_SAVE xstateSave{};
+            NTSTATUS status = KeSaveExtendedProcessorState(XSTATE_MASK_GSSE, &xstateSave);
             if (NT_SUCCESS(status)) {
                 UnpdFastCopyAVX2ASM(dest, src, size);
-                KeRestoreExtendedProcessorState(reinterpret_cast<PXSTATE_SAVE>(&fpuSave));
+                KeRestoreExtendedProcessorState(&xstateSave);
                 return;
             }
         }

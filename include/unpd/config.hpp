@@ -13,10 +13,18 @@
 
 // Project Metadata
 #define UNPD_PROJECT_NAME           "Unsolicited Non-Paged Driver"
-#define UNPD_PROJECT_VERSION_STRING "1.4.0"
-#define UNPD_PROJECT_VERSION_MAJOR  1
+#define UNPD_PROJECT_VERSION_STRING "2.4.0"
+#define UNPD_PROJECT_VERSION_MAJOR  2
 #define UNPD_PROJECT_VERSION_MINOR  4
 #define UNPD_PROJECT_VERSION_PATCH  0
+
+// Custom Device Class GUID for IoCreateDeviceSecure (WdmLibIoCreateDeviceSecure)
+// {8A69BCF4-D546-4B8F-9FE3-6BDCE64B5327}
+#ifdef _KERNEL_MODE
+#include <initguid.h>
+DEFINE_GUID(GUID_DEVCLASS_UNPD,
+    0x8a69bcf4, 0xd546, 0x4b8f, 0x9f, 0xe3, 0x6b, 0xdc, 0xe6, 0x4b, 0x53, 0x27);
+#endif
 
 // Kernel Device Names & Symbolic Links
 #define UNPD_NT_DEVICE_NAME         L"\\Device\\UnsolicitedNonPagedDriver"

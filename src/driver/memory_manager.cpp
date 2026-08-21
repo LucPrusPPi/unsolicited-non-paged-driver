@@ -36,9 +36,21 @@ NTSTATUS UnpdHandleAllocate(
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
+    constexpr uint32_t kMaxAllocations = 1024;
+    constexpr uint64_t kMaxTotalBytes = 256ULL * 1024ULL * 1024ULL;
+
     uint64_t handle = 0;
     {
         unpd::SpinlockGuard guard(&devExt->StateLock);
+
+        if (devExt->ActiveAllocations >= kMaxAllocations || (devExt->TotalBytesAllocated + allocSize) > kMaxTotalBytes) {
+            *information = 0;
+            return STATUS_QUOTA_EXCEEDED;
+        }
+
+        if (devExt->NextAllocationHandle == 0) {
+            devExt->NextAllocationHandle = 1;
+        }
 
         handle = devExt->NextAllocationHandle++;
         entry.get()->Handle = handle;

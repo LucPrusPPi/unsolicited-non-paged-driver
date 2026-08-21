@@ -70,7 +70,7 @@ static constexpr ULONG SLAB_TAGS[4]  = { '1LSU', '2LSU', '3LSU', '4LSU' };
 // ============================================================================
 
 MdlMemoryEngine::MdlMemoryEngine() noexcept
-    : m_initialized(false), m_nextSessionId(1) {
+    : m_activeSessionsCount(0), m_initialized(false), m_nextSessionId(1) {
     KeInitializeSpinLock(&m_lock);
     InitializeListHead(&m_sessionListHead);
 }
@@ -156,6 +156,7 @@ void MdlMemoryEngine::Shutdown() noexcept {
         KeAcquireSpinLock(&m_lock, &oldIrql);
     }
 
+    m_activeSessionsCount = 0;
     KeReleaseSpinLock(&m_lock, oldIrql);
     m_initialized = false;
 }
@@ -194,17 +195,30 @@ void MdlMemoryEngine::HandleProcessExit(HANDLE processId) noexcept {
     KIRQL oldIrql;
     KeAcquireSpinLock(&m_lock, &oldIrql);
 
-    for (PLIST_ENTRY curr = m_sessionListHead.Flink; curr != &m_sessionListHead; curr = curr->Flink) {
+    PLIST_ENTRY curr = m_sessionListHead.Flink;
+    while (curr != &m_sessionListHead) {
         auto* node = CONTAINING_RECORD(curr, SessionListNode, ListEntry);
+        curr = curr->Flink;
+
         if (node->Descriptor.OwningProcess) {
             HANDLE pid = PsGetProcessId(node->Descriptor.OwningProcess);
             if (pid == processId) {
-                // Windows automatically cleans up the dying process's VAD tree upon exit.
-                // Nullify UserVa and SecureHandle to safely prevent double-unmap attempts in DestroySessionNode / DriverUnload.
-                if (node->Descriptor.UserVa && node->Descriptor.Mdl) {
-                    node->Descriptor.UserVa = NULL;
-                    node->Descriptor.SecureHandle = NULL;
+                RemoveEntryList(&node->ListEntry);
+                InitializeListHead(&node->ListEntry);
+                m_activeSessionsCount--;
+
+                // Dying process VAD is destroyed by kernel; prevent double unmap
+                node->Descriptor.UserVa = NULL;
+                node->Descriptor.SecureHandle = NULL;
+                InterlockedExchange(&node->Descriptor.IsTornDown, 1);
+
+                KeReleaseSpinLock(&m_lock, oldIrql);
+                LONG refs = InterlockedDecrement(&node->Descriptor.ReferenceCount);
+                if (refs == 0) {
+                    DestroySessionNode(node);
                 }
+                KeAcquireSpinLock(&m_lock, &oldIrql);
+                curr = m_sessionListHead.Flink;
             }
         }
     }
@@ -215,6 +229,11 @@ void MdlMemoryEngine::HandleProcessExit(HANDLE processId) noexcept {
 kstd::expected<SharedSessionDescriptor> MdlMemoryEngine::AllocateSharedSession(ULONG pageCount) noexcept {
     if (pageCount == 0 || pageCount > 256) {
         return kstd::expected<SharedSessionDescriptor>::error(STATUS_INVALID_PARAMETER);
+    }
+
+    // Enforce quota: maximum 64 active shared sessions
+    if (m_activeSessionsCount >= 64) {
+        return kstd::expected<SharedSessionDescriptor>::error(STATUS_QUOTA_EXCEEDED);
     }
 
     SIZE_T totalBytes = static_cast<SIZE_T>(pageCount) * PAGE_SIZE;
@@ -229,10 +248,14 @@ kstd::expected<SharedSessionDescriptor> MdlMemoryEngine::AllocateSharedSession(U
         skipBytes,
         totalBytes,
         MmCached,
-        MM_ALLOCATE_PREFER_CONTIGUOUS
+        MM_ALLOCATE_FULLY_REQUIRED | MM_ALLOCATE_PREFER_CONTIGUOUS
     );
 
-    if (!mdl) {
+    if (!mdl || MmGetMdlByteCount(mdl) < totalBytes) {
+        if (mdl) {
+            MmFreePagesFromMdl(mdl);
+            IoFreeMdl(mdl);
+        }
         return kstd::expected<SharedSessionDescriptor>::error(STATUS_INSUFFICIENT_RESOURCES);
     }
 
@@ -311,6 +334,7 @@ kstd::expected<SharedSessionDescriptor> MdlMemoryEngine::AllocateSharedSession(U
     KIRQL oldIrql;
     KeAcquireSpinLock(&m_lock, &oldIrql);
     InsertTailList(&m_sessionListHead, &node->ListEntry);
+    m_activeSessionsCount++;
     KeReleaseSpinLock(&m_lock, oldIrql);
 
     return desc;
@@ -327,6 +351,7 @@ NTSTATUS MdlMemoryEngine::FreeSharedSession(uint64_t sessionId) noexcept {
         auto* node = CONTAINING_RECORD(curr, SessionListNode, ListEntry);
         if (node->Descriptor.SessionId == sessionId) {
             RemoveEntryList(&node->ListEntry);
+            m_activeSessionsCount--;
             targetNode = node;
             break;
         }
@@ -358,9 +383,12 @@ NTSTATUS MdlMemoryEngine::SwapBuffers(
         return STATUS_NOT_FOUND;
     }
 
-    LONG current = node->Descriptor.ActiveBufferIndex;
-    LONG next = (current == 0) ? 1 : 0;
-    InterlockedExchange(&node->Descriptor.ActiveBufferIndex, next);
+    LONG current = 0;
+    LONG next = 0;
+    do {
+        current = node->Descriptor.ActiveBufferIndex;
+        next = (current == 0) ? 1 : 0;
+    } while (InterlockedCompareExchange(&node->Descriptor.ActiveBufferIndex, next, current) != current);
     UnpdMemoryFence();
 
     LONG64 totalSwaps = InterlockedIncrement64(&node->Descriptor.SwapCounter);

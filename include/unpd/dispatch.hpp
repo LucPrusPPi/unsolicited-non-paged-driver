@@ -27,6 +27,7 @@ typedef struct _UNPD_DEVICE_EXTENSION {
     uint64_t TotalBytesFreed;
     uint64_t TotalIoctlProcessed;
     uint64_t SpinLockContentionCount;
+    BOOLEAN ProcessNotifyRegistered;
     unpd::memory::UniversalMemoryManager* MemoryManager;
 } UNPD_DEVICE_EXTENSION, *PUNPD_DEVICE_EXTENSION;
 
