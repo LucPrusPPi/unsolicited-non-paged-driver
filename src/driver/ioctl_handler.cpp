@@ -92,35 +92,39 @@ NTSTATUS UnpdHandleProcessBufferDirect(
         return STATUS_BUFFER_TOO_SMALL;
     }
 
-    if (irp->MdlAddress == nullptr) {
+    if (irp->AssociatedIrp.SystemBuffer == nullptr || irp->MdlAddress == nullptr) {
         *information = 0;
         return STATUS_INVALID_PARAMETER;
     }
 
-    PVOID buffer = MmGetSystemAddressForMdlSafe(irp->MdlAddress, NormalPagePriority | MdlMappingNoExecute);
-    if (buffer == nullptr) {
+    auto* inHeader = static_cast<PUNPD_BUFFER_HEADER>(irp->AssociatedIrp.SystemBuffer);
+    if (inHeader->Magic != UNPD_MAGIC_REQUEST) {
+        *information = 0;
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    PVOID outBuffer = MmGetSystemAddressForMdlSafe(irp->MdlAddress, NormalPagePriority | MdlMappingNoExecute);
+    if (outBuffer == nullptr) {
         *information = 0;
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    auto* header = static_cast<PUNPD_BUFFER_HEADER>(buffer);
-    if (header->Magic != UNPD_MAGIC_REQUEST) {
-        *information = 0;
-        return STATUS_INVALID_PARAMETER;
-    }
+    auto* outHeader = static_cast<PUNPD_BUFFER_HEADER>(outBuffer);
 
     uint32_t checksum = 0;
-    auto* bytePtr = static_cast<uint8_t*>(buffer) + sizeof(UNPD_BUFFER_HEADER);
-    ULONG payloadLen = outLen - sizeof(UNPD_BUFFER_HEADER);
+    auto* bytePtr = static_cast<uint8_t*>(irp->AssociatedIrp.SystemBuffer) + sizeof(UNPD_BUFFER_HEADER);
+    ULONG payloadLen = (inLen > sizeof(UNPD_BUFFER_HEADER)) ? (inLen - sizeof(UNPD_BUFFER_HEADER)) : 0;
 
     for (ULONG i = 0; i < payloadLen; ++i) {
         checksum = (checksum * 31) + bytePtr[i];
     }
 
-    header->Magic = UNPD_MAGIC_RESPONSE;
-    header->Checksum = checksum;
+    outHeader->Magic = UNPD_MAGIC_RESPONSE;
+    outHeader->Operation = inHeader->Operation;
+    outHeader->DataLength = inHeader->DataLength;
+    outHeader->Checksum = checksum;
 
-    *information = outLen;
+    *information = sizeof(UNPD_BUFFER_HEADER);
     return STATUS_SUCCESS;
 }
 
@@ -366,15 +370,15 @@ NTSTATUS UnpdHandleSlabFree(
 ) {
     ULONG inLen = irpSp->Parameters.DeviceIoControl.InputBufferLength;
     ULONG outLen = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
-    auto* inBuf = static_cast<PUNPD_SLAB_RESPONSE>(irp->AssociatedIrp.SystemBuffer);
+    auto* inBuf = static_cast<PUNPD_SLAB_FREE_REQUEST>(irp->AssociatedIrp.SystemBuffer);
     auto* outBuf = static_cast<PUNPD_FREE_RESPONSE>(irp->AssociatedIrp.SystemBuffer);
 
-    if (inLen < sizeof(UNPD_SLAB_RESPONSE) || outLen < sizeof(UNPD_FREE_RESPONSE)) {
+    if (inLen < sizeof(UNPD_SLAB_FREE_REQUEST) || outLen < sizeof(UNPD_FREE_RESPONSE)) {
         *information = 0;
         return STATUS_BUFFER_TOO_SMALL;
     }
 
-    if (inBuf->Magic != UNPD_MAGIC_RESPONSE || inBuf->SlabHandle == 0) {
+    if (inBuf->Magic != UNPD_MAGIC_REQUEST || inBuf->SlabHandle == 0) {
         *information = 0;
         return STATUS_INVALID_PARAMETER;
     }
@@ -388,6 +392,7 @@ NTSTATUS UnpdHandleSlabFree(
 
     outBuf->Magic = UNPD_MAGIC_RESPONSE;
     outBuf->Status = NT_SUCCESS(status) ? UNPD_STATUS_SUCCESS : UNPD_STATUS_INVALID_PARAM;
+    outBuf->FreedByteCount = NT_SUCCESS(status) ? inBuf->BlockSize : 0;
 
     *information = sizeof(UNPD_FREE_RESPONSE);
     return status;
@@ -650,6 +655,14 @@ NTSTATUS UnpdHandleSimdPatternScan(
     const void* match = nullptr;
 
 #ifdef _KERNEL_MODE
+    KPROCESSOR_MODE requestorMode = irp->RequestorMode;
+
+    // Disallow scanning kernel address space from user-mode requests to prevent KASLR bypass & arbitrary read
+    if (requestorMode == UserMode && inBuf->BaseAddress >= 0x7FFFFFFFFFFFULL) {
+        *information = 0;
+        return STATUS_ACCESS_DENIED;
+    }
+
     PMDL scanMdl = IoAllocateMdl(
         reinterpret_cast<PVOID>(inBuf->BaseAddress),
         static_cast<ULONG>(inBuf->BufferSize),
@@ -663,11 +676,10 @@ NTSTATUS UnpdHandleSimdPatternScan(
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    KPROCESSOR_MODE accessMode = static_cast<KPROCESSOR_MODE>((inBuf->BaseAddress < 0x7FFFFFFFFFFFULL) ? UserMode : KernelMode);
     bool pagesLocked = false;
 
     __try {
-        MmProbeAndLockPages(scanMdl, accessMode, IoReadAccess);
+        MmProbeAndLockPages(scanMdl, requestorMode, IoReadAccess);
         pagesLocked = true;
 
         match = unpd::simd::SimdEngine::ScanPattern(
@@ -739,6 +751,11 @@ NTSTATUS UnpdHandleResolveVmt(
     bool found = false;
 
     __try {
+#ifdef _KERNEL_MODE
+        if (irp->RequestorMode == UserMode) {
+            ProbeForRead(reinterpret_cast<const void*>(inBuf->ModuleBase), inBuf->ModuleSize, 1);
+        }
+#endif
         found = unpd::mmu::VmtResolver::ResolveVtable(
             reinterpret_cast<const void*>(inBuf->ModuleBase),
             inBuf->ModuleSize,

@@ -273,6 +273,12 @@ typedef struct _UNPD_SLAB_REQUEST {
     uint32_t BlockClass;
 } UNPD_SLAB_REQUEST, *PUNPD_SLAB_REQUEST;
 
+typedef struct _UNPD_SLAB_FREE_REQUEST {
+    uint32_t Magic;
+    uint32_t BlockSize;
+    uint64_t SlabHandle;
+} UNPD_SLAB_FREE_REQUEST, *PUNPD_SLAB_FREE_REQUEST;
+
 typedef struct _UNPD_SLAB_RESPONSE {
     uint32_t Magic;
     uint32_t Status;

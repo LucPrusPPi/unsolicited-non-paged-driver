@@ -435,7 +435,7 @@ public:
             return true;
         }
 
-        UNPD_SLAB_RESPONSE req{};
+        UNPD_SLAB_FREE_REQUEST req{};
         req.Magic = UNPD_MAGIC_REQUEST;
         req.SlabHandle = slabHandle;
         req.BlockSize = blockSize;

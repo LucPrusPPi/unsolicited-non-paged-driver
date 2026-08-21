@@ -113,17 +113,19 @@ NTSTATUS UnpdHandleFree(
     if (targetEntry == nullptr) {
         outBuf->Magic = UNPD_MAGIC_RESPONSE;
         outBuf->Status = UNPD_STATUS_NOT_FOUND;
+        outBuf->FreedByteCount = 0;
         *information = sizeof(UNPD_FREE_RESPONSE);
         return STATUS_NOT_FOUND;
     }
 
     if (freeAddr != nullptr) {
-        ExFreePoolWithTag(freeAddr, freeTag);
+        UnpdFreePool(freeAddr, freeTag);
     }
-    ExFreePoolWithTag(targetEntry, UNPD_POOL_TAG);
+    UnpdFreePool(targetEntry, UNPD_POOL_TAG);
 
     outBuf->Magic = UNPD_MAGIC_RESPONSE;
     outBuf->Status = UNPD_STATUS_SUCCESS;
+    outBuf->FreedByteCount = static_cast<uint64_t>(freeSize);
 
     *information = sizeof(UNPD_FREE_RESPONSE);
     return STATUS_SUCCESS;

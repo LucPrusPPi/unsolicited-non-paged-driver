@@ -19,6 +19,21 @@ Operating in Windows NT Kernel Mode (Ring-0) leaves zero tolerance for unhandled
 | **`0x7E`** | `SYSTEM_THREAD_EXCEPTION_NOT_HANDLED` | Thread crash before APC execution or rundown | `KernelApcRundown` and `KernelApcCleanup` routines guarantee pool deallocation (`ExFreePoolWithTag`) even if the target thread terminates prematurely. |
 | **`0xD1`** | `DRIVER_IRQL_NOT_LESS_OR_EQUAL` | Spinlock held across pageable code boundaries | All spinlock-protected critical sections contain purely non-paged memory operations and atomic primitives. |
 | **`0x109`** | `CRITICAL_STRUCTURE_CORRUPTION` | PatchGuard / Kernel Patch Protection (KPP) trigger | Zero static hooks; all trace scrubbing uses native AVL table rebalancing and circular list compaction. |
+| **`0x124`** | `WHEA_UNCORRECTABLE_ERROR` | Machine Check Exception (MCE) from PAT/MTRR cache aliasing (UC vs WB) on physical RAM | Physical memory reader uses `MmCopyMemory` with `MM_COPY_MEMORY_PHYSICAL` instead of `MmMapIoSpace(..., MmNonCached)`. |
+
+---
+
+## Hardened Security Invariants & Zero-Day Defense Matrix
+
+| Vulnerability / Zero-Day Class | Vector & Attack Surface | Root Cause | Implemented Defensive Invariant |
+|---|---|---|---|
+| **VirtualFree DoS / PFN Corruption (`0x4E`/`0x76`)** | User-mode application calling `VirtualFree` on mapped MDL pages before IOCTL Unmap | Memory Manager destroys VAD, causing BugCheck on subsequent `MmUnmapLockedPages`. | Immediate `MmSecureVirtualMemory(userVa, size, PAGE_READWRITE)` on mapping; user-mode freeing/protection changes are rejected by kernel. Safe `MmUnsecureVirtualMemory` on teardown. |
+| **Access Mode Spoofing & KASLR Leak** | Passing kernel address (`0xFFFF...`) to SIMD scanner with dynamic `accessMode` calculation | `accessMode` switched to `KernelMode`, bypassing security probe and allowing user mode to scan/leak kernel pointers. | Enforced `irp->RequestorMode` with strict check: user-mode requests attempting to scan addresses `>= 0x7FFFFFFFFFFF` immediately return `STATUS_ACCESS_DENIED`. |
+| **Unprobed Kernel Read in VMT Resolver** | User mode passing kernel address in `ModuleBase` to `UnpdHandleResolveVmt` | Missing `ProbeForRead` allowed reading kernel VTables across address boundaries without protection verification. | Mandatory `ProbeForRead(ModuleBase, ModuleSize, 1)` within `__try / __except` for all user-mode requests. |
+| **Integer Truncation in Memory Lock** | Passing `BufferSize = 0x100000000` (4GB + 1B) cast to 32-bit `ULONG` in `IoAllocateMdl` | Truncation resulted in 1 locked page while scanner iterated through unlocked physical RAM (TOCTOU). | Strict `kMaxScanBufferSize = 16MB` upper-bound validation on all scan and CR3 read/write requests. |
+| **Down-level Boot/Load Failure (`ExAllocatePool2`)** | Missing `ExAllocatePool2` export on Windows 10 < 2004 (1909, 1809, LTSB 2016) | Direct calls to `ExAllocatePool2` resulted in `STATUS_ENTRYPOINT_NOT_FOUND` / BugCheck `0x7E`. | Universal `UnpdAllocatePool` / `UnpdFreePool` wrappers dynamically selecting `ExAllocatePool2` or `ExAllocatePoolWithTag(NonPagedPoolNx)` based on OS build. |
+| **Uninitialized Kernel Stack Leak** | Missing assignment to `FreedByteCount` in `UnpdHandleFree` / `UnpdHandleSlabFree` | 8 bytes of uninitialized kernel stack data copied back to user mode buffer. | Explicit assignment of `FreedByteCount = freeSize` and total zero-initialization of response structures. |
+| **METHOD_IN_DIRECT Buffer Role Inversion** | Attempting to read input request magic from `MmGetSystemAddressForMdlSafe(irp->MdlAddress)` | In `METHOD_IN_DIRECT`, input is in `SystemBuffer`, output is in `MdlAddress`. | Input read strictly from `irp->AssociatedIrp.SystemBuffer`, output checksum written to `irp->MdlAddress`. |
 
 ---
 
