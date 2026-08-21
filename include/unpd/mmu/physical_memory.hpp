@@ -108,9 +108,9 @@ public:
      */
     static bool IsPhysicalAddressAllowed(ULONG64 physicalAddress, SIZE_T size) noexcept {
         if (!physicalAddress || size == 0) return false;
-        // Restrict lower 1MB legacy BIOS/IVT/BDA space and APIC/MMIO typical range (>= 0xFEE00000 && < 0x100000000)
+        // Restrict lower 1MB legacy BIOS/IVT/BDA space and APIC/IO-APIC/PCI MMIO range (>= 0xFEC00000 && < 0x100000000)
         if (physicalAddress < 0x100000ULL) return false;
-        if (physicalAddress >= 0xFEE00000ULL && physicalAddress < 0x100000000ULL) return false;
+        if (physicalAddress >= 0xFEC00000ULL && physicalAddress < 0x100000000ULL) return false;
         return true;
     }
 
