@@ -256,12 +256,12 @@ python scripts/python/init_template.py --name "MyHypervisorDriver" --tag "HYPR"
 <!-- LANGUAGES_START -->
 | Language | Share | Files | Code Lines |
 |---|---|---|---|
-| C++ | 63.8% | 61 | 9,636 |
-| Python | 14.8% | 8 | 1,302 |
-| Lua |  5.6% | 7 | 797 |
-| Assembly |  5.5% | 1 | 1,038 |
+| C++ | 63.2% | 61 | 9,636 |
+| Python | 15.2% | 9 | 1,371 |
+| Lua |  5.5% | 7 | 797 |
+| Assembly |  5.4% | 1 | 1,038 |
+| PowerShell |  3.1% | 6 | 381 |
 | C |  2.9% | 1 | 427 |
-| PowerShell |  2.7% | 5 | 324 |
 | Shell |  2.5% | 7 | 345 |
 | CMake |  2.2% | 1 | 308 |
 <!-- LANGUAGES_END -->
