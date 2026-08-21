@@ -747,15 +747,24 @@ NTSTATUS UnpdHandleResolveVmt(
         return STATUS_INVALID_PARAMETER;
     }
 
+#ifdef _KERNEL_MODE
+    if (irp->RequestorMode == UserMode) {
+        NTSTATUS probeStatus = unpd::ProbeUserBufferForRead(
+            reinterpret_cast<const void*>(inBuf->ModuleBase),
+            static_cast<SIZE_T>(inBuf->ModuleSize),
+            1
+        );
+        if (!NT_SUCCESS(probeStatus)) {
+            *information = 0;
+            return probeStatus;
+        }
+    }
+#endif
+
     unpd::mmu::VmtResolver::VmtInfo info{};
     bool found = false;
 
     __try {
-#ifdef _KERNEL_MODE
-        if (irp->RequestorMode == UserMode) {
-            ProbeForRead(reinterpret_cast<const void*>(inBuf->ModuleBase), inBuf->ModuleSize, 1);
-        }
-#endif
         found = unpd::mmu::VmtResolver::ResolveVtable(
             reinterpret_cast<const void*>(inBuf->ModuleBase),
             inBuf->ModuleSize,
